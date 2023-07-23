@@ -4,8 +4,7 @@ use std::time::SystemTime;
 
 use camera::Camera;
 use gl::FALSE;
-use gl::types::GLuint;
-use image::EncodableLayout;
+use shader::ShaderError;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
@@ -14,15 +13,19 @@ use winit::window::WindowBuilder;
 use raw_window_handle::HasRawWindowHandle;
 
 use glutin::config::ConfigTemplateBuilder;
-use glutin::context::{ContextApi, ContextAttributesBuilder, Version};
+use glutin::context::ContextAttributesBuilder;
 use glutin::display::GetGlDisplay;
 use glutin::prelude::*;
-use glutin::surface::SwapInterval;
 
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
+use crate::program::Program;
+use crate::shader::Shader;
+use crate::texture::Texture;
+
 mod camera;
 mod shader;
+mod program;
 mod terrian;
 mod texture;
 
@@ -118,7 +121,7 @@ fn main() {
                     gl_display.get_proc_address(c_str.as_c_str())
                 });
 
-                renderer.get_or_insert_with(|| Renderer::new());
+                renderer.get_or_insert_with(|| Renderer::new().unwrap());
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
@@ -181,30 +184,19 @@ fn main() {
 }
 
 pub struct Renderer {
-    program: gl::types::GLuint,
+    program: Program,
     vao: gl::types::GLuint,
     vbo: gl::types::GLuint,
-    texture_id: gl::types::GLuint,
+    texture: Texture
 }
 
 impl Renderer {
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, ShaderError> {
         unsafe {
 
-            let vertex_shader = create_shader(gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-            let fragment_shader = create_shader(gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
-
-            let program = gl::CreateProgram();
-
-            gl::AttachShader(program, vertex_shader);
-            gl::AttachShader(program, fragment_shader);
-
-            gl::LinkProgram(program);
-
-            gl::UseProgram(program);
-
-            gl::DeleteShader(vertex_shader);
-            gl::DeleteShader(fragment_shader);
+            let vertex_shader = Shader::new(VERTEX_SHADER_SOURCE, gl::VERTEX_SHADER)?;
+            let fragment_shader = Shader::new(FRAGMENT_SHADER_SOURCE, gl::FRAGMENT_SHADER)?;
+            let program = Program::new(&[vertex_shader, fragment_shader])?;
 
             let vertex_data = terrian::generate_terrian_vertices(50.0, 1009);
             let ebo_data = terrian::generate_terrian_ebo(1009);
@@ -260,57 +252,22 @@ impl Renderer {
             gl::EnableVertexAttribArray(1 as gl::types::GLuint);
 
 
-            // load texture
-            let mut texture_id: GLuint = 0;
-            gl::GenTextures(1, &mut texture_id);
-            gl::BindTexture(gl::TEXTURE_2D, texture_id);
-
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_WRAP_S,
-                gl::REPEAT as i32,
-            );
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_WRAP_T,
-                gl::REPEAT as i32,
-            );
-
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl::LINEAR as i32,
-            );
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
-
-            let img = image::open("desert_mountains.png").unwrap();
-            img.rotate270();
-            let bit_map = img.into_rgba8();
-
-            gl::TexImage2D(
-                gl::TEXTURE_2D,
-                0,
-                gl::RGBA as i32,
-                bit_map.width() as i32,
-                bit_map.height() as i32,
-                0,
-                gl::RGBA,
-                gl::UNSIGNED_BYTE,
-                bit_map.as_bytes().as_ptr() as *const _,
-            );
-            gl::GenerateMipmap(gl::TEXTURE_2D);
+            let texture = Texture::new();
+            texture.set_wrap_settings();
+            texture.set_filter_settings();
+            texture.load();
 
             let c_str = CString::new("texture0").unwrap();
-            gl::Uniform1i(gl::GetUniformLocation(program, c_str.as_ptr()), 0);
+            gl::Uniform1i(gl::GetUniformLocation(program.id, c_str.as_ptr()), 0);
 
             gl::Enable(gl::DEPTH_TEST);
 
-            return Self {
+            return Ok(Self {
                 program,
                 vao,
                 vbo,
-                texture_id
-            };
+                texture
+            });
         }
     }
 
@@ -319,21 +276,20 @@ impl Renderer {
             gl::ClearColor(0.2, 0.3, 0.3, 0.7);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            gl::ActiveTexture(gl::TEXTURE0);
-            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
+            self.texture.activate();
 
-            gl::UseProgram(self.program);
+            gl::UseProgram(self.program.id);
 
             let view = camera.get_view_matrix();
             let c_view = CString::new("view").unwrap();
             let view_uniform =
-                gl::GetUniformLocation(self.program, c_view.as_ptr() as *const i8);
+                gl::GetUniformLocation(self.program.id, c_view.as_ptr() as *const i8);
             gl::UniformMatrix4fv(view_uniform, 1, FALSE, view.as_array().as_ptr() as *const _);
 
             let projection =
                 glm::ext::perspective(glm::radians(camera.fov), 800.0 / 600.0, 0.1, 100.0);
             let c_projection = CString::new("projection").unwrap();
-            let projection_uniform = gl::GetUniformLocation(self.program, c_projection.as_ptr() as *const i8);
+            let projection_uniform = gl::GetUniformLocation(self.program.id, c_projection.as_ptr() as *const i8);
             gl::UniformMatrix4fv(
                 projection_uniform,
                 1,
@@ -350,7 +306,7 @@ impl Renderer {
             );
 
             let c_model = CString::new("model").unwrap();
-            let model_uniform = gl::GetUniformLocation(self.program, c_model.as_ptr() as *const i8);
+            let model_uniform = gl::GetUniformLocation(self.program.id, c_model.as_ptr() as *const i8);
             gl::UniformMatrix4fv(
                 model_uniform,
                 1,
@@ -371,37 +327,22 @@ impl Renderer {
     }
 }
 
+impl Default for Renderer {
+    fn default() -> Self {
+        Self::new().unwrap()
+    }
+}
+
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteProgram(self.program);
             gl::DeleteBuffers(1, &self.vbo);
             gl::DeleteVertexArrays(1, &self.vao);
         }
     }
 }
 
-unsafe fn create_shader(
-    shader: gl::types::GLenum,
-    source: &[u8],
-) -> gl::types::GLuint {
-    let shader = gl::CreateShader(shader);
-    gl::ShaderSource(
-        shader,
-        1,
-        [source.as_ptr().cast()].as_ptr(),
-        std::ptr::null(),
-    );
-    gl::CompileShader(shader);
-    let mut success = std::mem::zeroed();
-    gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
-    if success != 1 {
-        println!("failed to compile shader");
-    }
-    shader
-}
-
-const VERTEX_SHADER_SOURCE: &[u8] = b"
+const VERTEX_SHADER_SOURCE: &str = r#"
 #version 330 core 
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
@@ -417,9 +358,9 @@ void main()
     gl_Position = projection * view * model * vec4(aPos, 1.0);
     TexCoord = aTexCoord;
 }
-\0";
+"#;
 
-const FRAGMENT_SHADER_SOURCE: &[u8] = b"
+const FRAGMENT_SHADER_SOURCE: &str = r#"
 #version 330 core
 out vec4 FragColor;
 
@@ -431,4 +372,4 @@ void main()
 {
     FragColor = texture(texture0, TexCoord);
 } 
-\0";
+"#;
