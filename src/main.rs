@@ -1,8 +1,13 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::num::NonZeroU32;
-use std::ops::Deref;
+use std::time::SystemTime;
 
-use winit::event::{Event, WindowEvent};
+use camera::Camera;
+use gl::FALSE;
+use gl::types::GLuint;
+use image::EncodableLayout;
+use winit::dpi::PhysicalSize;
+use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
 use winit::window::WindowBuilder;
 
@@ -16,18 +21,17 @@ use glutin::surface::SwapInterval;
 
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
-pub mod gl {
-    #![allow(clippy::all)]
-    include!(concat!(env!("OUT_DIR"), "/gl_bindings.rs"));
-
-    pub use Gles2 as Gl;
-}
+mod camera;
+mod shader;
+mod terrian;
+mod texture;
 
 fn main() {
     let event_loop = EventLoopBuilder::new().build();
     let window_builder = Some(
         WindowBuilder::new()
-            .with_title("We using rust now baby!")
+            .with_min_inner_size(PhysicalSize::new(1920, 1080))
+            .with_title("We using rust now baby!"),
     );
 
     let template = ConfigTemplateBuilder::new()
@@ -52,8 +56,6 @@ fn main() {
                 .unwrap()
         })
         .unwrap();
-
-    println!("Sampling {}", gl_config.num_samples());
 
     let raw_window_handle = window.as_ref().map(|window| window.raw_window_handle());
 
@@ -85,8 +87,23 @@ fn main() {
 
     let mut state = None;
     let mut renderer = None;
+
+    let mut camera = Camera::new();
+    let mut last_time = SystemTime::now();
+    let mut delta_time = Default::default();
+    let mut now_keys = [false; 255];
     event_loop.run(move |event, window_target, control_flow| {
-        control_flow.set_wait();
+        control_flow.set_poll();
+
+        let current_time = SystemTime::now();
+        let delta_time_duration = current_time
+            .duration_since(last_time)
+            .expect("can't get delta_time");
+        delta_time = delta_time_duration.as_secs_f32();
+        last_time = current_time;
+
+        // println!("fps: {}", 1.0 / delta_time);
+
         match event {
             Event::Resumed => {
                 let window = window.take().unwrap_or_else(|| {
@@ -94,6 +111,10 @@ fn main() {
                     glutin_winit::finalize_window(window_target, window_builder, &gl_config)
                         .unwrap()
                 });
+                let _ = window
+                    .set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                    .unwrap();
+                let _ = window.set_cursor_visible(false);
 
                 let attrs = window.build_surface_attributes(<_>::default());
                 let gl_surface = unsafe {
@@ -103,19 +124,18 @@ fn main() {
                         .unwrap()
                 };
 
-                // Make it current.
                 let gl_context = not_current_gl_context
                     .take()
                     .unwrap()
                     .make_current(&gl_surface)
                     .unwrap();
+                gl::load_with(|ptr| {
+                    let c_str = CString::new(ptr).unwrap();
+                    gl_display.get_proc_address(c_str.as_c_str())
+                });
 
-                // The context needs to be current for the Renderer to set up shaders and
-                // buffers. It also performs function loading, which needs a current context on
-                // WGL.
-                renderer.get_or_insert_with(|| Renderer::new(&gl_display));
+                renderer.get_or_insert_with(|| Renderer::new());
 
-                // Try setting vsync.
                 if let Err(res) = gl_surface
                     .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
                 {
@@ -124,6 +144,25 @@ fn main() {
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
+            Event::DeviceEvent { event, .. } => match event {
+                winit::event::DeviceEvent::MouseMotion { delta } => {
+                    camera.handle_mouse_input(delta.0 as f32, delta.1 as f32);
+                }
+                winit::event::DeviceEvent::MouseWheel { .. } => {}
+                winit::event::DeviceEvent::Key(keyboard_input) => {
+                    if let Some(key_code) = keyboard_input.virtual_keycode {
+                        match keyboard_input.state {
+                            winit::event::ElementState::Pressed => {
+                                now_keys[key_code as usize] = true;
+                            }
+                            winit::event::ElementState::Released => {
+                                now_keys[key_code as usize] = false;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            },
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::Resized(size) => {
                     if size.width != 0 && size.height != 0 {
@@ -143,14 +182,20 @@ fn main() {
                 }
                 _ => {}
             },
-            Event::RedrawEventsCleared => {
+            Event::MainEventsCleared => {
                 if let Some((gl_context, gl_surface, window)) = &state {
                     let renderer = renderer.as_ref().unwrap();
-                    renderer.draw();
+                    renderer.draw(&camera);
                     window.request_redraw();
 
                     gl_surface.swap_buffers(gl_context).unwrap();
                 }
+
+                if now_keys[VirtualKeyCode::Escape as usize] {
+                    control_flow.set_exit();
+                }
+
+                camera.handle_keyboard_input(&now_keys, delta_time)
             }
             _ => {}
         }
@@ -161,255 +206,245 @@ pub struct Renderer {
     program: gl::types::GLuint,
     vao: gl::types::GLuint,
     vbo: gl::types::GLuint,
-    gl: gl::Gl,
+    texture_id: gl::types::GLuint,
 }
 
 impl Renderer {
-    pub fn new<D: GlDisplay>(gl_display: &D) -> Self {
+    pub fn new() -> Self {
         unsafe {
-            let gl = gl::Gl::load_with(|symbol| {
-                let symbol = CString::new(symbol).unwrap();
-                gl_display.get_proc_address(symbol.as_c_str()).cast()
-            });
 
-            if let Some(renderer) = get_gl_string(&gl, gl::RENDERER) {
-                println!("running on {}", renderer.to_string_lossy());
-            }
-            if let Some(version) = get_gl_string(&gl, gl::VERSION) {
-                println!("OpenGL version {}", version.to_string_lossy());
-            }
+            let vertex_shader = create_shader(gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
+            let fragment_shader = create_shader(gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
 
-            if let Some(shaders_version) = get_gl_string(&gl, gl::SHADING_LANGUAGE_VERSION) {
-                println!("Shaders version on {}", shaders_version.to_string_lossy());
-            }
+            let program = gl::CreateProgram();
 
-            let vertex_shader = Shader::new(&gl, VERTEX_SHADER_SOURCE, gl::VERTEX_SHADER);
-            let fragment_shader = create_shader(&gl, gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
+            gl::AttachShader(program, vertex_shader);
+            gl::AttachShader(program, fragment_shader);
 
-            let program = gl.CreateProgram();
+            gl::LinkProgram(program);
 
-            gl.AttachShader(program, vertex_shader.id);
-            gl.AttachShader(program, fragment_shader);
+            gl::UseProgram(program);
 
-            gl.LinkProgram(program);
+            gl::DeleteShader(vertex_shader);
+            gl::DeleteShader(fragment_shader);
 
-            gl.UseProgram(program);
+            let vertex_data = terrian::generate_terrian_vertices(50.0, 127);
+            let ebo_data = terrian::generate_terrian_ebo(127);
 
-            gl.DeleteShader(vertex_shader.id);
-            gl.DeleteShader(fragment_shader);
+            println!("length: {}", ebo_data.len());
 
             let mut vao = std::mem::zeroed();
-            gl.GenVertexArrays(1, &mut vao);
-            gl.BindVertexArray(vao);
+            gl::GenVertexArrays(1, &mut vao);
+            gl::BindVertexArray(vao);
 
             let mut vbo = std::mem::zeroed();
-            gl.GenBuffers(1, &mut vbo);
-            gl.BindBuffer(gl::ARRAY_BUFFER, vbo);
-            gl.BufferData(
+            gl::GenBuffers(1, &mut vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::BufferData(
                 gl::ARRAY_BUFFER,
-                (VERTEX_DATA_OLD.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-                VERTEX_DATA_OLD.as_ptr() as *const _,
+                (vertex_data.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
+                vertex_data.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
 
             let mut ebo = std::mem::zeroed();
-            gl.GenBuffers(1, &mut ebo);
-            gl.BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-            gl.BufferData(
+            gl::GenBuffers(1, &mut ebo);
+            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+            gl::BufferData(
                 gl::ELEMENT_ARRAY_BUFFER,
-                (INDEX_DATA.len() * std::mem::size_of::<i32>()) as gl::types::GLsizeiptr,
-                INDEX_DATA.as_ptr() as *const _,
+                (ebo_data.len() * std::mem::size_of::<i32>()) as gl::types::GLsizeiptr,
+                ebo_data.as_ptr() as *const _,
                 gl::STATIC_DRAW,
             );
 
-            let pos_attrib = gl.GetAttribLocation(program, b"position\0".as_ptr() as *const _);
-            let color_attrib = gl.GetAttribLocation(program, b"color\0".as_ptr() as *const _);
-            gl.VertexAttribPointer(
-                pos_attrib as gl::types::GLuint,
+            // vertex attri
+            gl::VertexAttribPointer(
+                0 as gl::types::GLuint,
                 3,
                 gl::FLOAT,
                 0,
-                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 std::ptr::null(),
             );
-            gl.VertexAttribPointer(
-                color_attrib as gl::types::GLuint,
-                3,
+
+            // texture attri
+            gl::VertexAttribPointer(
+                1 as gl::types::GLuint,
+                2,
                 gl::FLOAT,
                 0,
-                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 (3 * std::mem::size_of::<f32>()) as *const () as *const _,
             );
-            gl.EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
-            gl.EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+
+            // enable both attribute pointers.
+            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
+            gl::EnableVertexAttribArray(1 as gl::types::GLuint);
+
+
+            // load texture
+            let mut texture_id: GLuint = 0;
+            gl::GenTextures(1, &mut texture_id);
+            gl::BindTexture(gl::TEXTURE_2D, texture_id);
+
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_WRAP_S,
+                gl::MIRRORED_REPEAT as i32,
+            );
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_WRAP_T,
+                gl::MIRRORED_REPEAT as i32,
+            );
+
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MIN_FILTER,
+                gl::LINEAR_MIPMAP_LINEAR as i32,
+            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+
+            let bit_map = image::open("desert_mountains.png").unwrap().into_rgb8();
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                gl::RGBA as i32,
+                bit_map.width() as i32,
+                bit_map.height() as i32,
+                0,
+                gl::RGBA,
+                gl::UNSIGNED_BYTE,
+                bit_map.as_bytes().as_ptr() as *const _,
+            );
+
+            let c_str = CString::new("texture0").unwrap();
+            gl::Uniform1i(gl::GetUniformLocation(program, c_str.as_ptr()), 0);
 
             return Self {
                 program,
                 vao,
                 vbo,
-                gl,
+                texture_id
             };
         }
     }
 
-    pub fn draw(&self) {
+    pub fn draw(&self, camera: &Camera) {
         unsafe {
-            self.gl.ClearColor(0.2, 0.3, 0.3, 0.7);
-            self.gl.Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+            gl::ClearColor(0.2, 0.3, 0.3, 0.7);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-            self.gl.UseProgram(self.program);
+            gl::ActiveTexture(gl::TEXTURE0);
+            gl::BindTexture(gl::TEXTURE_2D, self.texture_id);
 
-            self.gl.BindVertexArray(self.vao);
+            gl::UseProgram(self.program);
 
-            self.gl
-               .DrawElements(gl::TRIANGLES, 3, gl::UNSIGNED_INT, std::ptr::null());
+            let view = camera.get_view_matrix();
+            let c_view = CString::new("view").unwrap();
+            let view_uniform =
+                gl::GetUniformLocation(self.program, c_view.as_ptr() as *const i8);
+            gl::UniformMatrix4fv(view_uniform, 1, FALSE, view.as_array().as_ptr() as *const _);
+
+            let projection =
+                glm::ext::perspective(glm::radians(camera.fov), 800.0 / 600.0, 0.1, 100.0);
+            let c_projection = CString::new("projection").unwrap();
+            let projection_uniform = gl::GetUniformLocation(self.program, c_projection.as_ptr() as *const i8);
+            gl::UniformMatrix4fv(
+                projection_uniform,
+                1,
+                FALSE,
+                projection.as_array().as_ptr() as *const _,
+            );
+
+            #[rustfmt::skip]
+            let model = glm::mat4(
+                1.0, 0.0, 0.0, 0.0, 
+                0.0, 1.0, 0.0, 0.0, 
+                0.0, 0.0, 1.0, 0.0, 
+                0.0, 0.0, 0.0, 1.0,
+            );
+
+            let c_model = CString::new("model").unwrap();
+            let model_uniform = gl::GetUniformLocation(self.program, c_model.as_ptr() as *const i8);
+            gl::UniformMatrix4fv(
+                model_uniform,
+                1,
+                FALSE,
+                model.as_array().as_ptr() as *const _,
+            );
+
+            gl::BindVertexArray(self.vao);
+
+            gl::DrawElements(gl::TRIANGLES, 95256, gl::UNSIGNED_INT, std::ptr::null());
         }
     }
 
     pub fn resize(&self, width: i32, height: i32) {
-        println!("width: {}, height: {}", width, height);
         unsafe {
-            self.gl.Viewport(0, 0, width, height);
+            gl::Viewport(0, 0, width, height);
         }
-    }
-}
-
-impl Deref for Renderer {
-    type Target = gl::Gl;
-
-    fn deref(&self) -> &Self::Target {
-        &self.gl
     }
 }
 
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
-            self.gl.DeleteProgram(self.program);
-            self.gl.DeleteBuffers(1, &self.vbo);
-            self.gl.DeleteVertexArrays(1, &self.vao);
+            gl::DeleteProgram(self.program);
+            gl::DeleteBuffers(1, &self.vbo);
+            gl::DeleteVertexArrays(1, &self.vao);
         }
     }
 }
 
 unsafe fn create_shader(
-    gl: &gl::Gl,
     shader: gl::types::GLenum,
     source: &[u8],
 ) -> gl::types::GLuint {
-    let shader = gl.CreateShader(shader);
-    gl.ShaderSource(
+    let shader = gl::CreateShader(shader);
+    gl::ShaderSource(
         shader,
         1,
         [source.as_ptr().cast()].as_ptr(),
         std::ptr::null(),
     );
-    gl.CompileShader(shader);
+    gl::CompileShader(shader);
     let mut success = std::mem::zeroed();
-    gl.GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
-    if success != 0 {
-        println!("Unable to compile: {}", shader);
+    gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
+    if success != 1 {
+        println!("failed to compile shader");
     }
     shader
 }
 
-fn get_gl_string(gl: &gl::Gl, variant: gl::types::GLenum) -> Option<&'static CStr> {
-    unsafe {
-        let s = gl.GetString(variant);
-        (!s.is_null()).then(|| CStr::from_ptr(s.cast()))
-    }
-}
-
-#[rustfmt::skip]
-static VERTEX_DATA_OLD: [f32; 18] = [
-    -0.5, -0.5, 0.0, 1.0,  0.0,  0.0,
-     0.0,  0.5, 0.0, 0.0,  1.0,  0.0,
-     0.5, -0.5, 0.0, 0.0,  0.0,  1.0,
-];
-
-
-#[rustfmt::skip]
-static VERTEX_DATA: [f32; 12] = [
-     0.5,  0.5, 0.0,
-     0.5, -0.5, 0.0, 
-    -0.5, -0.5, 0.0,
-    -0.5,  0.5, 0.0,
-];
-
-#[rustfmt::skip]
-static INDEX_DATA: [i32; 3] = [
-    0, 1, 2, 
-];
-
 const VERTEX_SHADER_SOURCE: &[u8] = b"
-#version 100 
-precision mediump float;
+#version 330 core 
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec2 aTexCoord;
 
-attribute vec3 position;
-attribute vec3 color;
+out vec2 TexCoord;
 
-varying vec3 v_color;
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
 
-void main() {
-    gl_Position = vec4(position, 1.0);
-    v_color = color;
+void main() 
+{
+    gl_Position = projection * view * model * vec4(aPos, 1.0);
+    TexCoord = aTexCoord;
 }
 \0";
 
 const FRAGMENT_SHADER_SOURCE: &[u8] = b"
-#version 100 
-precision mediump float;
+#version 330 core
+out vec4 FragColor;
 
-varying vec3 v_color;
+in vec2 TexCoord;
 
-void main() {
-    gl_FragColor = vec4(v_color, 1.0);
-}
+uniform sampler2D texture0;
+
+void main() 
+{
+    FragColor = texture(texture0, TexCoord);
+} 
 \0";
-
-struct Shader {
-    id: gl::types::GLuint,
-    gl: gl::Gl,
-}
-
-impl Shader {
-    pub fn new(gl: &gl::Gl, source: &[u8], shader_type: gl::types::GLenum) -> Self {
-
-        unsafe {
-            let shader = gl.CreateShader(shader_type); 
-
-            gl.ShaderSource(
-                shader,
-                1,
-                [source.as_ptr().cast()].as_ptr(),
-                std::ptr::null(),
-            );
-            gl.CompileShader(shader);
-            let mut success = std::mem::zeroed();
-            gl.GetShaderiv(shader, gl::COMPILE_STATUS, &mut success);
-            if success != 0 {
-                println!("Unable to compile: {}", shader);
-            }
-            Self {id: shader, gl: gl.clone() }
-        }
-    }
-
-    pub fn use_shader(&self) {
-
-
-
-    }
-
-    pub fn set_bool(&self, name: &str, value: bool) {
-
-    }
-    pub fn set_int(&self, name: &str, value: bool) {
-
-    }
-    pub fn set_float(&self, name: &str, value: bool) {
-
-    }
-    pub fn set_mat4(&self, name: &str, value: bool) {
-
-    }
-}
