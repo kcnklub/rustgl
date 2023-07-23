@@ -63,26 +63,10 @@ fn main() {
 
     let context_attributes = ContextAttributesBuilder::new().build(raw_window_handle);
 
-    let fallback_context_attributes = ContextAttributesBuilder::new()
-        .with_context_api(glutin::context::ContextApi::Gles(None))
-        .build(raw_window_handle);
-
-    let legacy_context_attributes = ContextAttributesBuilder::new()
-        .with_context_api(ContextApi::OpenGl(Some(Version::new(2, 1))))
-        .build(raw_window_handle);
-
     let mut not_current_gl_context = Some(unsafe {
         gl_display
             .create_context(&gl_config, &context_attributes)
-            .unwrap_or_else(|_| {
-                gl_display
-                    .create_context(&gl_config, &fallback_context_attributes)
-                    .unwrap_or_else(|_| {
-                        gl_display
-                            .create_context(&gl_config, &legacy_context_attributes)
-                            .expect("failed to create context")
-                    })
-            })
+            .expect("unable to load context")
     });
 
     let mut state = None;
@@ -102,7 +86,7 @@ fn main() {
         delta_time = delta_time_duration.as_secs_f32();
         last_time = current_time;
 
-        // println!("fps: {}", 1.0 / delta_time);
+        println!("fps: {}", 1.0 / delta_time);
 
         match event {
             Event::Resumed => {
@@ -135,12 +119,6 @@ fn main() {
                 });
 
                 renderer.get_or_insert_with(|| Renderer::new());
-
-                if let Err(res) = gl_surface
-                    .set_swap_interval(&gl_context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
-                {
-                    eprintln!("Error setting vsync: {res:?}");
-                }
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
@@ -228,8 +206,8 @@ impl Renderer {
             gl::DeleteShader(vertex_shader);
             gl::DeleteShader(fragment_shader);
 
-            let vertex_data = terrian::generate_terrian_vertices(50.0, 127);
-            let ebo_data = terrian::generate_terrian_ebo(127);
+            let vertex_data = terrian::generate_terrian_vertices(50.0, 1009);
+            let ebo_data = terrian::generate_terrian_ebo(1009);
 
             println!("length: {}", ebo_data.len());
 
@@ -290,22 +268,25 @@ impl Renderer {
             gl::TexParameteri(
                 gl::TEXTURE_2D,
                 gl::TEXTURE_WRAP_S,
-                gl::MIRRORED_REPEAT as i32,
+                gl::REPEAT as i32,
             );
             gl::TexParameteri(
                 gl::TEXTURE_2D,
                 gl::TEXTURE_WRAP_T,
-                gl::MIRRORED_REPEAT as i32,
+                gl::REPEAT as i32,
             );
 
             gl::TexParameteri(
                 gl::TEXTURE_2D,
                 gl::TEXTURE_MIN_FILTER,
-                gl::LINEAR_MIPMAP_LINEAR as i32,
+                gl::LINEAR as i32,
             );
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
 
-            let bit_map = image::open("desert_mountains.png").unwrap().into_rgb8();
+            let img = image::open("desert_mountains.png").unwrap();
+            img.rotate270();
+            let bit_map = img.into_rgba8();
+
             gl::TexImage2D(
                 gl::TEXTURE_2D,
                 0,
@@ -317,9 +298,12 @@ impl Renderer {
                 gl::UNSIGNED_BYTE,
                 bit_map.as_bytes().as_ptr() as *const _,
             );
+            gl::GenerateMipmap(gl::TEXTURE_2D);
 
             let c_str = CString::new("texture0").unwrap();
             gl::Uniform1i(gl::GetUniformLocation(program, c_str.as_ptr()), 0);
+
+            gl::Enable(gl::DEPTH_TEST);
 
             return Self {
                 program,
@@ -376,7 +360,7 @@ impl Renderer {
 
             gl::BindVertexArray(self.vao);
 
-            gl::DrawElements(gl::TRIANGLES, 95256, gl::UNSIGNED_INT, std::ptr::null());
+            gl::DrawElements(gl::TRIANGLES, 6096384, gl::UNSIGNED_INT, std::ptr::null());
         }
     }
 
