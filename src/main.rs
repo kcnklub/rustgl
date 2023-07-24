@@ -3,8 +3,6 @@ use std::num::NonZeroU32;
 use std::time::SystemTime;
 
 use camera::Camera;
-use gl::FALSE;
-use shader::ShaderError;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
@@ -19,13 +17,11 @@ use glutin::prelude::*;
 
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
-use crate::program::Program;
-use crate::shader::Shader;
-use crate::texture::Texture;
+use crate::terrian::TerrianRenderer;
 
 mod camera;
-mod shader;
 mod program;
+mod shader;
 mod terrian;
 mod texture;
 
@@ -121,7 +117,7 @@ fn main() {
                     gl_display.get_proc_address(c_str.as_c_str())
                 });
 
-                renderer.get_or_insert_with(|| Renderer::new().unwrap());
+                renderer.get_or_insert_with(|| TerrianRenderer::new().unwrap());
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
@@ -182,194 +178,3 @@ fn main() {
         }
     });
 }
-
-pub struct Renderer {
-    program: Program,
-    vao: gl::types::GLuint,
-    vbo: gl::types::GLuint,
-    texture: Texture
-}
-
-impl Renderer {
-    pub fn new() -> Result<Self, ShaderError> {
-        unsafe {
-
-            let vertex_shader = Shader::new(VERTEX_SHADER_SOURCE, gl::VERTEX_SHADER)?;
-            let fragment_shader = Shader::new(FRAGMENT_SHADER_SOURCE, gl::FRAGMENT_SHADER)?;
-            let program = Program::new(&[vertex_shader, fragment_shader])?;
-
-            let vertex_data = terrian::generate_terrian_vertices(50.0, 1009);
-            let ebo_data = terrian::generate_terrian_ebo(1009);
-
-            println!("length: {}", ebo_data.len());
-
-            let mut vao = std::mem::zeroed();
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
-
-            let mut vbo = std::mem::zeroed();
-            gl::GenBuffers(1, &mut vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
-                (vertex_data.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-                vertex_data.as_ptr() as *const _,
-                gl::STATIC_DRAW,
-            );
-
-            let mut ebo = std::mem::zeroed();
-            gl::GenBuffers(1, &mut ebo);
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                (ebo_data.len() * std::mem::size_of::<i32>()) as gl::types::GLsizeiptr,
-                ebo_data.as_ptr() as *const _,
-                gl::STATIC_DRAW,
-            );
-
-            // vertex attri
-            gl::VertexAttribPointer(
-                0 as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
-            );
-
-            // texture attri
-            gl::VertexAttribPointer(
-                1 as gl::types::GLuint,
-                2,
-                gl::FLOAT,
-                0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                (3 * std::mem::size_of::<f32>()) as *const () as *const _,
-            );
-
-            // enable both attribute pointers.
-            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
-            gl::EnableVertexAttribArray(1 as gl::types::GLuint);
-
-
-            let texture = Texture::new();
-            texture.set_wrap_settings();
-            texture.set_filter_settings();
-            texture.load();
-
-            let c_str = CString::new("texture0").unwrap();
-            gl::Uniform1i(gl::GetUniformLocation(program.id, c_str.as_ptr()), 0);
-
-            gl::Enable(gl::DEPTH_TEST);
-
-            return Ok(Self {
-                program,
-                vao,
-                vbo,
-                texture
-            });
-        }
-    }
-
-    pub fn draw(&self, camera: &Camera) {
-        unsafe {
-            gl::ClearColor(0.2, 0.3, 0.3, 0.7);
-            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
-
-            self.texture.activate();
-
-            gl::UseProgram(self.program.id);
-
-            let view = camera.get_view_matrix();
-            let c_view = CString::new("view").unwrap();
-            let view_uniform =
-                gl::GetUniformLocation(self.program.id, c_view.as_ptr() as *const i8);
-            gl::UniformMatrix4fv(view_uniform, 1, FALSE, view.as_array().as_ptr() as *const _);
-
-            let projection =
-                glm::ext::perspective(glm::radians(camera.fov), 800.0 / 600.0, 0.1, 100.0);
-            let c_projection = CString::new("projection").unwrap();
-            let projection_uniform = gl::GetUniformLocation(self.program.id, c_projection.as_ptr() as *const i8);
-            gl::UniformMatrix4fv(
-                projection_uniform,
-                1,
-                FALSE,
-                projection.as_array().as_ptr() as *const _,
-            );
-
-            #[rustfmt::skip]
-            let model = glm::mat4(
-                1.0, 0.0, 0.0, 0.0, 
-                0.0, 1.0, 0.0, 0.0, 
-                0.0, 0.0, 1.0, 0.0, 
-                0.0, 0.0, 0.0, 1.0,
-            );
-
-            let c_model = CString::new("model").unwrap();
-            let model_uniform = gl::GetUniformLocation(self.program.id, c_model.as_ptr() as *const i8);
-            gl::UniformMatrix4fv(
-                model_uniform,
-                1,
-                FALSE,
-                model.as_array().as_ptr() as *const _,
-            );
-
-            gl::BindVertexArray(self.vao);
-
-            gl::DrawElements(gl::TRIANGLES, 6096384, gl::UNSIGNED_INT, std::ptr::null());
-        }
-    }
-
-    pub fn resize(&self, width: i32, height: i32) {
-        unsafe {
-            gl::Viewport(0, 0, width, height);
-        }
-    }
-}
-
-impl Default for Renderer {
-    fn default() -> Self {
-        Self::new().unwrap()
-    }
-}
-
-impl Drop for Renderer {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteBuffers(1, &self.vbo);
-            gl::DeleteVertexArrays(1, &self.vao);
-        }
-    }
-}
-
-const VERTEX_SHADER_SOURCE: &str = r#"
-#version 330 core 
-layout (location = 0) in vec3 aPos;
-layout (location = 1) in vec2 aTexCoord;
-
-out vec2 TexCoord;
-
-uniform mat4 model;
-uniform mat4 view;
-uniform mat4 projection;
-
-void main() 
-{
-    gl_Position = projection * view * model * vec4(aPos, 1.0);
-    TexCoord = aTexCoord;
-}
-"#;
-
-const FRAGMENT_SHADER_SOURCE: &str = r#"
-#version 330 core
-out vec4 FragColor;
-
-in vec2 TexCoord;
-
-uniform sampler2D texture0;
-
-void main() 
-{
-    FragColor = texture(texture0, TexCoord);
-} 
-"#;

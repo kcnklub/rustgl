@@ -1,11 +1,15 @@
+use std::fs;
+
 use gl::types::{GLenum, GLint, GLuint};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ShaderError {
-    #[error("Error while compiling shader; {0}")]
+    #[error("Error while reading shader source file: {0}")]
+    ReadingFileError(String),
+    #[error("Error while compiling shader: {0}")]
     CompileError(String),
-    #[error("Error while linking program; {0}")]
+    #[error("Error while linking program: {0}")]
     LinkingError(String),
 }
 
@@ -14,7 +18,11 @@ pub struct Shader {
 }
 
 impl Shader {
-    pub unsafe fn new(source_code: &str, shader_type: GLenum) -> Result<Self, ShaderError> {
+    pub unsafe fn new(path_to_source_code: &str, shader_type: GLenum) -> Result<Self, ShaderError> {
+        let source_code = match fs::read_to_string(path_to_source_code) {
+            Ok(source) => source,
+            Err(error) => return Err(ShaderError::ReadingFileError(error.to_string())),
+        };
         let shader = Self {
             id: gl::CreateShader(shader_type),
         };
