@@ -1,6 +1,5 @@
 use crate::{program::Program, shader::{Shader, ShaderError}, texture::Texture, camera::Camera};
 
-
 pub struct TerrianRenderer {
     program: Program,
     vao: gl::types::GLuint,
