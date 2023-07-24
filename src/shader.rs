@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, io, string::FromUtf8Error};
 
 use gl::types::{GLenum, GLint, GLuint};
 use thiserror::Error;
@@ -6,11 +6,13 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ShaderError {
     #[error("Error while reading shader source file: {0}")]
-    ReadingFileError(String),
+    ReadingFileError(#[from] io::Error),
     #[error("Error while compiling shader: {0}")]
     CompileError(String),
     #[error("Error while linking program: {0}")]
     LinkingError(String),
+    #[error("Error converting info log to utf8")]
+    Utf8Error(#[from] FromUtf8Error),
 }
 
 pub struct Shader {
@@ -19,10 +21,7 @@ pub struct Shader {
 
 impl Shader {
     pub unsafe fn new(path_to_source_code: &str, shader_type: GLenum) -> Result<Self, ShaderError> {
-        let source_code = match fs::read_to_string(path_to_source_code) {
-            Ok(source) => source,
-            Err(error) => return Err(ShaderError::ReadingFileError(error.to_string())),
-        };
+        let source_code = fs::read_to_string(path_to_source_code)?;
         let shader = Self {
             id: gl::CreateShader(shader_type),
         };
@@ -49,7 +48,7 @@ impl Shader {
             );
 
             message.set_len(error_size as usize);
-            let log = String::from_utf8(message).unwrap();
+            let log = String::from_utf8(message)?;
             Err(ShaderError::CompileError(log))
         }
     }
