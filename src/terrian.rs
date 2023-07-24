@@ -17,8 +17,6 @@ impl TerrianRenderer {
             let vertex_data = generate_terrian_vertices(50.0, 1009);
             let ebo_data = generate_terrian_ebo(1009);
 
-            println!("length: {}", ebo_data.len());
-
             let mut vao = std::mem::zeroed();
             gl::GenVertexArrays(1, &mut vao);
             gl::BindVertexArray(vao);
