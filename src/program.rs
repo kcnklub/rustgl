@@ -61,4 +61,10 @@ impl Program {
         let uniform = gl::GetUniformLocation(self.id, c_str.as_ptr() as *const i8);
         gl::UniformMatrix4fv(uniform, 1, FALSE, value.as_array().as_ptr() as *const _);
     }
+
+    pub unsafe fn set_uniform_vec3(&self, name: &str, value: glm::Vector3<f32>) {
+        let c_str = CString::new(name).unwrap();
+        let uniform = gl::GetUniformLocation(self.id, c_str.as_ptr() as *const i8);
+        gl::Uniform3f(uniform, value.x, value.y, value.z);
+    }
 }

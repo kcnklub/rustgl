@@ -18,12 +18,14 @@ use glutin::prelude::*;
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
 use crate::terrian::TerrianRenderer;
+use crate::tutorial_renderer::TutorialRenderer;
 
 mod camera;
 mod program;
 mod shader;
 mod terrian;
 mod texture;
+mod tutorial_renderer;
 
 fn main() {
     let event_loop = EventLoopBuilder::new().build();
@@ -85,7 +87,7 @@ fn main() {
         delta_time = delta_time_duration.as_secs_f32();
         last_time = current_time;
 
-        println!("fps: {}", 1.0 / delta_time);
+        //println!("fps: {}", 1.0 / delta_time);
 
         match event {
             Event::Resumed => {
@@ -117,7 +119,7 @@ fn main() {
                     gl_display.get_proc_address(c_str.as_c_str())
                 });
 
-                renderer.get_or_insert_with(|| TerrianRenderer::new().unwrap());
+                renderer.get_or_insert_with(|| TutorialRenderer::new().unwrap());
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }

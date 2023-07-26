@@ -1,3 +1,5 @@
+use gl::types::GLuint;
+
 use crate::{program::Program, shader::{Shader, ShaderError}, texture::Texture, camera::Camera};
 
 pub struct TerrianRenderer {
@@ -50,6 +52,7 @@ impl TerrianRenderer {
                 5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 std::ptr::null(),
             );
+            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
 
             // texture attri
             gl::VertexAttribPointer(
@@ -60,9 +63,6 @@ impl TerrianRenderer {
                 5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 (3 * std::mem::size_of::<f32>()) as *const () as *const _,
             );
-
-            // enable both attribute pointers.
-            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
             gl::EnableVertexAttribArray(1 as gl::types::GLuint);
 
 
@@ -70,7 +70,6 @@ impl TerrianRenderer {
             texture.set_wrap_settings();
             texture.set_filter_settings();
             texture.load();
-
             program.set_uniform_int("texture0", 0);
 
             gl::Enable(gl::DEPTH_TEST);

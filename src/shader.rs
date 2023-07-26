@@ -21,6 +21,7 @@ pub struct Shader {
 
 impl Shader {
     pub unsafe fn new(path_to_source_code: &str, shader_type: GLenum) -> Result<Self, ShaderError> {
+        println!("{path_to_source_code}");
         let source_code = fs::read_to_string(path_to_source_code)?;
         let shader = Self {
             id: gl::CreateShader(shader_type),

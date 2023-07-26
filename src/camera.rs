@@ -21,7 +21,7 @@ impl Camera {
     pub fn new() -> Self {
         #[rustfmt::skip]
         let mut new_camera = Self {
-            camera_position: vec3(50.0, 50.0, 3.0),
+            camera_position: vec3(0.0, 0.0, 3.0),
             camera_front:    vec3(0.0, 0.0, -1.0),
             camera_up:       vec3(0.0, 1.0,  0.0),
             right:           vec3(0.0, 0.0,  0.0),
