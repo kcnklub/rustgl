@@ -163,7 +163,7 @@ fn main() {
             },
             Event::MainEventsCleared => {
                 if let Some((gl_context, gl_surface, window)) = &state {
-                    let renderer = renderer.as_ref().unwrap();
+                    let renderer = renderer.as_mut().unwrap();
                     renderer.draw(&camera);
                     window.request_redraw();
 
