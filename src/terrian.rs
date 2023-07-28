@@ -1,4 +1,4 @@
-use gl::types::GLuint;
+use std::time::SystemTime;
 
 use crate::{program::Program, shader::{Shader, ShaderError}, texture::Texture, camera::Camera};
 
@@ -6,7 +6,8 @@ pub struct TerrianRenderer {
     program: Program,
     vao: gl::types::GLuint,
     vbo: gl::types::GLuint,
-    texture: Texture
+    texture: Texture,
+    light_position: glm::Vec3
 }
 
 impl TerrianRenderer {
@@ -49,7 +50,7 @@ impl TerrianRenderer {
                 3,
                 gl::FLOAT,
                 0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                8 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 std::ptr::null(),
             );
             gl::EnableVertexAttribArray(0 as gl::types::GLuint);
@@ -60,10 +61,21 @@ impl TerrianRenderer {
                 2,
                 gl::FLOAT,
                 0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                8 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 (3 * std::mem::size_of::<f32>()) as *const () as *const _,
             );
             gl::EnableVertexAttribArray(1 as gl::types::GLuint);
+
+            // normal attri
+            gl::VertexAttribPointer(
+                2 as gl::types::GLuint,
+                3,
+                gl::FLOAT,
+                0,
+                8 * std::mem::size_of::<f32>() as gl::types::GLsizei,
+                (5 * std::mem::size_of::<f32>()) as *const () as *const _,
+            );
+            gl::EnableVertexAttribArray(2 as gl::types::GLuint);
 
 
             let texture = Texture::new();
@@ -78,7 +90,7 @@ impl TerrianRenderer {
                 program,
                 vao,
                 vbo,
-                texture
+                texture,light_position: glm::vec3(25.0, 25.0, 25.0)
             });
         }
     }
@@ -106,6 +118,20 @@ impl TerrianRenderer {
                 0.0, 0.0, 0.0, 1.0,
             );
             self.program.set_uniform_mat4("model", model);
+
+            let time = SystemTime::now();
+            let time_since = time
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_millis();
+
+            let offset = glm::sin(glm::radians(time_since as f64 * 0.01)) * 25 as f64;
+            let moving_light = glm::vec3(
+                self.light_position.x + (offset as f32), 
+                self.light_position.y,
+                self.light_position.z + (offset as f32)
+            );
+            self.program.set_uniform_vec3("lightPos", moving_light);
 
             gl::BindVertexArray(self.vao);
 
@@ -137,13 +163,13 @@ impl Drop for TerrianRenderer {
 
 pub fn generate_terrian_vertices(width: f32, divisions: i32) -> Vec<f32> {
     let img = image::open("my_height_map.png").unwrap().into_luma8();
+    let normal_img = image::open("normal_map.png").unwrap().into_rgba8();
     let mut output = vec![];
     let triangle_side = width / divisions as f32;
     for row in 0..divisions {
         for col in 0..divisions + 1 {
             // vertex data
             output.push(col as f32 * triangle_side);
-
             if col >= divisions {
                 let pixel = img.get_pixel(col as u32 - 1, row as u32).0[0];
                 output.push(pixel as f32 / 15.0); // can we give this height?
@@ -151,11 +177,24 @@ pub fn generate_terrian_vertices(width: f32, divisions: i32) -> Vec<f32> {
                 let pixel = img.get_pixel(col as u32, row as u32).0[0];
                 output.push(pixel as f32 / 15.0); // can we give this height?
             }
-
             output.push((row as f32 * triangle_side) as f32);
 
             output.push((col as f32 * triangle_side) / width);
             output.push((row as f32 * triangle_side) / width);
+
+            if col >= divisions {
+                let pixel = normal_img.get_pixel((col - 1) as u32, row as u32);
+                let pixel = pixel.0;
+                output.push(pixel[0] as f32);
+                output.push(pixel[1] as f32);
+                output.push(pixel[2] as f32);
+            } else {
+                let pixel = normal_img.get_pixel(col as u32, row as u32);
+                let pixel = pixel.0;
+                output.push(pixel[0] as f32);
+                output.push(pixel[1] as f32);
+                output.push(pixel[2] as f32);
+            }
         }
     }
 

@@ -90,7 +90,7 @@ impl TutorialRenderer {
         }
     }
 
-    pub fn draw(&mut self, camera: &Camera) {
+    pub fn draw(&self, camera: &Camera) {
         unsafe {
             let time = SystemTime::now();
             let time_since = time
