@@ -77,6 +77,7 @@ fn main() {
     let mut last_time = SystemTime::now();
     let mut delta_time = Default::default();
     let mut now_keys = [false; 255];
+
     event_loop.run(move |event, window_target, control_flow| {
         control_flow.set_poll();
 

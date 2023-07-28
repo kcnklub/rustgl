@@ -13,6 +13,10 @@ pub struct TerrianRenderer {
 impl TerrianRenderer {
     pub fn new() -> Result<Self, ShaderError> {
         unsafe {
+
+            // this is sound shit should be moved out of the render code.
+
+
             let vertex_shader = Shader::new("./resources/shaders/vertex.glsl", gl::VERTEX_SHADER)?;
             let fragment_shader = Shader::new("./resources/shaders/fragment.glsl", gl::FRAGMENT_SHADER)?;
             let program = Program::new(&[vertex_shader, fragment_shader])?;
@@ -162,7 +166,7 @@ impl Drop for TerrianRenderer {
 }
 
 pub fn generate_terrian_vertices(width: f32, divisions: i32) -> Vec<f32> {
-    let img = image::open("my_height_map.png").unwrap().into_luma8();
+    let img = image::open("my_height_map.png").unwrap().into_luma16();
     let normal_img = image::open("normal_map.png").unwrap().into_rgba8();
     let mut output = vec![];
     let triangle_side = width / divisions as f32;
@@ -172,10 +176,10 @@ pub fn generate_terrian_vertices(width: f32, divisions: i32) -> Vec<f32> {
             output.push(col as f32 * triangle_side);
             if col >= divisions {
                 let pixel = img.get_pixel(col as u32 - 1, row as u32).0[0];
-                output.push(pixel as f32 / 15.0); // can we give this height?
+                output.push(pixel as f32 / 4000.0); // can we give this height?
             } else {
                 let pixel = img.get_pixel(col as u32, row as u32).0[0];
-                output.push(pixel as f32 / 15.0); // can we give this height?
+                output.push(pixel as f32 / 4000.0); // can we give this height?
             }
             output.push((row as f32 * triangle_side) as f32);
 
