@@ -4,7 +4,7 @@ use glm::{vec3, Mat4, Vec3};
 use winit::event::VirtualKeyCode;
 
 pub struct Camera {
-    camera_position: Vec3,
+    pub camera_position: Vec3,
     camera_front: Vec3,
     camera_up: Vec3,
 
@@ -47,6 +47,12 @@ impl Camera {
         }
         if now_keys[VirtualKeyCode::D as usize] {
             self.camera_position = self.camera_position + self.right * movespeed;
+        }
+        if now_keys[VirtualKeyCode::E as usize] {
+            self.camera_position = self.camera_position + self.world_up * movespeed;
+        }
+        if now_keys[VirtualKeyCode::Q as usize] {
+            self.camera_position = self.camera_position - self.world_up * movespeed;
         }
     }
 

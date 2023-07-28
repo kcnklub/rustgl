@@ -119,7 +119,7 @@ fn main() {
                     gl_display.get_proc_address(c_str.as_c_str())
                 });
 
-                renderer.get_or_insert_with(|| TutorialRenderer::new().unwrap());
+                renderer.get_or_insert_with(|| TerrianRenderer::new().unwrap());
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }

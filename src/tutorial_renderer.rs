@@ -97,14 +97,13 @@ impl TutorialRenderer {
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_millis();
-            println!("{}", time_since as f64);
-            let offset = glm::sin(glm::radians(time_since as f64 * 0.05));
-            println!("{}", offset);
 
+            let offset = glm::sin(glm::radians(time_since as f64 * 0.05));
             let moving_light = glm::vec3(
-                self.light_position.x, 
+                self.light_position.x + (offset as f32), 
                 self.light_position.y + (offset as f32),
-                self.light_position.z);
+                self.light_position.z + (offset as f32)
+            );
 
             gl::ClearColor(0.2, 0.3, 0.3, 0.7);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
@@ -113,6 +112,7 @@ impl TutorialRenderer {
             self.program.set_uniform_vec3("objectColor", glm::vec3(1.0, 0.5, 0.31));
             self.program.set_uniform_vec3("lightColor", glm::vec3(1.0, 1.0, 1.0));
             self.program.set_uniform_vec3("lightPos", moving_light);
+            self.program.set_uniform_vec3("viewPos", camera.camera_position);
 
             let view = camera.get_view_matrix();
             self.program.set_uniform_mat4("view", view);
