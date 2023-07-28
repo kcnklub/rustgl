@@ -27,7 +27,8 @@ mod terrian;
 mod texture;
 mod tutorial_renderer;
 
-fn main() {
+fn main()
+{
     let event_loop = EventLoopBuilder::new().build();
     let window_builder = Some(
         WindowBuilder::new()
@@ -48,9 +49,12 @@ fn main() {
                     let transparency_check = config.supports_transparency().unwrap_or(false)
                         & !accum.supports_transparency().unwrap_or(false);
 
-                    if transparency_check || config.num_samples() > accum.num_samples() {
+                    if transparency_check || config.num_samples() > accum.num_samples()
+                    {
                         config
-                    } else {
+                    }
+                    else
+                    {
                         accum
                     }
                 })
@@ -90,8 +94,10 @@ fn main() {
 
         //println!("fps: {}", 1.0 / delta_time);
 
-        match event {
-            Event::Resumed => {
+        match event
+        {
+            Event::Resumed =>
+            {
                 let window = window.take().unwrap_or_else(|| {
                     let window_builder = WindowBuilder::new().with_transparent(true);
                     glutin_winit::finalize_window(window_target, window_builder, &gl_config)
@@ -124,29 +130,42 @@ fn main() {
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
-            Event::DeviceEvent { event, .. } => match event {
-                winit::event::DeviceEvent::MouseMotion { delta } => {
+            Event::DeviceEvent { event, .. } => match event
+            {
+                winit::event::DeviceEvent::MouseMotion { delta } =>
+                {
                     camera.handle_mouse_input(delta.0 as f32, delta.1 as f32);
                 }
-                winit::event::DeviceEvent::MouseWheel { .. } => {}
-                winit::event::DeviceEvent::Key(keyboard_input) => {
-                    if let Some(key_code) = keyboard_input.virtual_keycode {
-                        match keyboard_input.state {
-                            winit::event::ElementState::Pressed => {
+                winit::event::DeviceEvent::MouseWheel { .. } =>
+                {}
+                winit::event::DeviceEvent::Key(keyboard_input) =>
+                {
+                    if let Some(key_code) = keyboard_input.virtual_keycode
+                    {
+                        match keyboard_input.state
+                        {
+                            winit::event::ElementState::Pressed =>
+                            {
                                 now_keys[key_code as usize] = true;
                             }
-                            winit::event::ElementState::Released => {
+                            winit::event::ElementState::Released =>
+                            {
                                 now_keys[key_code as usize] = false;
                             }
                         }
                     }
                 }
-                _ => {}
+                _ =>
+                {}
             },
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::Resized(size) => {
-                    if size.width != 0 && size.height != 0 {
-                        if let Some((gl_context, gl_surface, _)) = &state {
+            Event::WindowEvent { event, .. } => match event
+            {
+                WindowEvent::Resized(size) =>
+                {
+                    if size.width != 0 && size.height != 0
+                    {
+                        if let Some((gl_context, gl_surface, _)) = &state
+                        {
                             gl_surface.resize(
                                 gl_context,
                                 NonZeroU32::new(size.width).unwrap(),
@@ -157,13 +176,17 @@ fn main() {
                         }
                     }
                 }
-                WindowEvent::CloseRequested => {
+                WindowEvent::CloseRequested =>
+                {
                     control_flow.set_exit();
                 }
-                _ => {}
+                _ =>
+                {}
             },
-            Event::MainEventsCleared => {
-                if let Some((gl_context, gl_surface, window)) = &state {
+            Event::MainEventsCleared =>
+            {
+                if let Some((gl_context, gl_surface, window)) = &state
+                {
                     let renderer = renderer.as_mut().unwrap();
                     renderer.draw(&camera);
                     window.request_redraw();
@@ -171,13 +194,15 @@ fn main() {
                     gl_surface.swap_buffers(gl_context).unwrap();
                 }
 
-                if now_keys[VirtualKeyCode::Escape as usize] {
+                if now_keys[VirtualKeyCode::Escape as usize]
+                {
                     control_flow.set_exit();
                 }
 
                 camera.handle_keyboard_input(&now_keys, delta_time)
             }
-            _ => {}
+            _ =>
+            {}
         }
     });
 }

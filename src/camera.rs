@@ -3,7 +3,8 @@ use std::ops::Add;
 use glm::{vec3, Mat4, Vec3};
 use winit::event::VirtualKeyCode;
 
-pub struct Camera {
+pub struct Camera
+{
     pub camera_position: Vec3,
     camera_front: Vec3,
     camera_up: Vec3,
@@ -17,8 +18,10 @@ pub struct Camera {
     pub fov: f32,
 }
 
-impl Camera {
-    pub fn new() -> Self {
+impl Camera
+{
+    pub fn new() -> Self
+    {
         #[rustfmt::skip]
         let mut new_camera = Self {
             camera_position: vec3(0.0, 0.0, 3.0),
@@ -34,44 +37,63 @@ impl Camera {
         new_camera
     }
 
-    pub fn handle_keyboard_input(&mut self, now_keys: &[bool; 255], delta_time: f32) {
+    pub fn handle_keyboard_input(
+        &mut self,
+        now_keys: &[bool; 255],
+        delta_time: f32,
+    )
+    {
         let movespeed = 500.0 * delta_time;
-        if now_keys[VirtualKeyCode::W as usize] {
+        if now_keys[VirtualKeyCode::W as usize]
+        {
             self.camera_position = self.camera_position + self.camera_front * movespeed;
         }
-        if now_keys[VirtualKeyCode::S as usize] {
+        if now_keys[VirtualKeyCode::S as usize]
+        {
             self.camera_position = self.camera_position - self.camera_front * movespeed;
         }
-        if now_keys[VirtualKeyCode::A as usize] {
+        if now_keys[VirtualKeyCode::A as usize]
+        {
             self.camera_position = self.camera_position - self.right * (movespeed);
         }
-        if now_keys[VirtualKeyCode::D as usize] {
+        if now_keys[VirtualKeyCode::D as usize]
+        {
             self.camera_position = self.camera_position + self.right * movespeed;
         }
-        if now_keys[VirtualKeyCode::E as usize] {
+        if now_keys[VirtualKeyCode::E as usize]
+        {
             self.camera_position = self.camera_position + self.world_up * movespeed;
         }
-        if now_keys[VirtualKeyCode::Q as usize] {
+        if now_keys[VirtualKeyCode::Q as usize]
+        {
             self.camera_position = self.camera_position - self.world_up * movespeed;
         }
     }
 
-    pub fn handle_mouse_input(&mut self, x_offset: f32, y_offset: f32) {
+    pub fn handle_mouse_input(
+        &mut self,
+        x_offset: f32,
+        y_offset: f32,
+    )
+    {
         let sensitivity = 0.1;
 
         self.yaw = self.yaw + (x_offset * sensitivity);
         self.pitch = self.pitch - (y_offset * sensitivity);
 
-        if self.pitch > 89.0 {
+        if self.pitch > 89.0
+        {
             self.pitch = 89.0;
         }
-        if self.pitch < -89.0 {
+        if self.pitch < -89.0
+        {
             self.pitch = -89.0;
         }
         self.update_camera_vectors();
     }
 
-    pub fn get_view_matrix(&self) -> Mat4 {
+    pub fn get_view_matrix(&self) -> Mat4
+    {
         return glm::ext::look_at_rh(
             self.camera_position,
             self.camera_position.add(self.camera_front),
@@ -79,7 +101,8 @@ impl Camera {
         );
     }
 
-    fn update_camera_vectors(&mut self) {
+    fn update_camera_vectors(&mut self)
+    {
         let mut direction = vec3(0.0, 0.0, 0.0);
         direction.x = glm::radians(self.yaw).cos() * glm::radians(self.pitch).cos();
         direction.y = glm::radians(self.pitch).sin();

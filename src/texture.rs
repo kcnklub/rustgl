@@ -2,24 +2,30 @@ use gl::types::GLuint;
 use image;
 use image::EncodableLayout;
 
-pub struct Texture {
+pub struct Texture
+{
     pub id: GLuint,
 }
 
-impl Drop for Texture {
-    fn drop(&mut self) {
+impl Drop for Texture
+{
+    fn drop(&mut self)
+    {
         unsafe { gl::DeleteTextures(1, [self.id].as_ptr()) }
     }
 }
 
-impl Texture {
-    pub unsafe fn new() -> Self {
+impl Texture
+{
+    pub unsafe fn new() -> Self
+    {
         let mut id: GLuint = 0;
         gl::GenTextures(1, &mut id);
         Self { id }
     }
 
-    pub unsafe fn load(&self) {
+    pub unsafe fn load(&self)
+    {
         self.bind();
 
         let img = image::open("desert_mountains.png").unwrap();
@@ -39,23 +45,27 @@ impl Texture {
         gl::GenerateMipmap(gl::TEXTURE_2D);
     }
 
-    pub unsafe fn set_wrap_settings(&self) {
+    pub unsafe fn set_wrap_settings(&self)
+    {
         self.bind();
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
     }
 
-    pub unsafe fn set_filter_settings(&self) {
+    pub unsafe fn set_filter_settings(&self)
+    {
         self.bind();
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
         gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
     }
 
-    pub unsafe fn bind(&self) {
+    pub unsafe fn bind(&self)
+    {
         gl::BindTexture(gl::TEXTURE_2D, self.id)
     }
 
-    pub unsafe fn activate(&self) {
+    pub unsafe fn activate(&self)
+    {
         gl::ActiveTexture(gl::TEXTURE0);
         self.bind();
     }
