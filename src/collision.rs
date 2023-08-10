@@ -90,7 +90,7 @@ mod test_2d
     }
 }
 
-fn test_collision_3d(
+pub fn test_collision_3d(
     v1: &[Vec3],
     stride1: usize,
     v2: &[Vec3],

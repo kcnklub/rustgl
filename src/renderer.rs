@@ -133,7 +133,7 @@ pub unsafe fn draw_without_ibo(
 {
     program.bind();
     vao.bind();
-    gl::DrawElements(gl::TRIANGLES, 36, gl::UNSIGNED_INT, std::ptr::null());
+    gl::DrawArrays(gl::TRIANGLES, 0, 36);
 }
 
 pub unsafe fn draw(

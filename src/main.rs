@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use std::time::SystemTime;
 
 use camera::Camera;
+use glm::vec3;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
@@ -17,6 +18,7 @@ use glutin::prelude::*;
 
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 
+use crate::colliding_renderer::{SquareObject, SquareRenderer};
 use crate::terrian::TerrianRenderer;
 use crate::tutorial_renderer::TutorialRenderer;
 
@@ -80,6 +82,7 @@ fn main()
 
     let mut state = None;
     let mut renderer = None;
+    let mut another_renderer = None;
 
     let mut camera = Camera::new();
     let mut last_time = SystemTime::now();
@@ -127,7 +130,14 @@ fn main()
                     gl_display.get_proc_address(c_str.as_c_str())
                 });
 
-                renderer.get_or_insert_with(|| colliding_renderer::SquareRenderer::new());
+                renderer.get_or_insert_with(|| SquareObject {
+                    position: vec3(0.0, 0.0, 0.0),
+                    renderer: SquareRenderer::new(),
+                });
+                another_renderer.get_or_insert_with(|| SquareObject {
+                    position: vec3(0.0, 0.0, 0.0),
+                    renderer: SquareRenderer::new(),
+                });
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
@@ -172,8 +182,9 @@ fn main()
                                 NonZeroU32::new(size.width).unwrap(),
                                 NonZeroU32::new(size.height).unwrap(),
                             );
-                            let renderer = renderer.as_ref().unwrap();
-                            renderer.resize(size.width as i32, size.height as i32);
+                            //let renderer = renderer.as_ref().unwrap();
+                            //renderer.resize(size.width as i32, size.height as
+                            // i32);
                         }
                     }
                 }
@@ -191,8 +202,25 @@ fn main()
                     // let try some physic??
                     camera.apply_gravity(delta_time);
 
+                    unsafe {
+                        gl::ClearColor(0.2, 0.3, 0.3, 0.7);
+                        gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
+                    }
+
+                    let another_renderer = another_renderer.as_mut().unwrap();
+
                     let renderer = renderer.as_mut().unwrap();
-                    renderer.draw(&camera);
+
+                    //let are_colliding = collision::test_collision_3d(
+                    //    renderer.get_verts().as_slice(),
+                    //    3,
+                    //    another_renderer.get_verts().as_slice(),
+                    //    3,
+                    //);
+
+                    another_renderer.process_square("y", &camera, true);
+                    renderer.process_square("x", &camera, false);
+
                     window.request_redraw();
 
                     gl_surface.swap_buffers(gl_context).unwrap();
