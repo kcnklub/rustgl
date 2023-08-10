@@ -60,12 +60,18 @@ impl Program
         }
     }
 
+    pub unsafe fn bind(&self)
+    {
+        gl::UseProgram(self.id)
+    }
+
     pub unsafe fn set_uniform_int(
         &self,
         name: &str,
         value: i32,
     )
     {
+        self.bind();
         let c_str = CString::new(name).unwrap();
         gl::Uniform1i(gl::GetUniformLocation(self.id, c_str.as_ptr()), value);
     }
@@ -76,6 +82,7 @@ impl Program
         value: Mat4,
     )
     {
+        self.bind();
         let c_str = CString::new(name).unwrap();
         let uniform = gl::GetUniformLocation(self.id, c_str.as_ptr() as *const i8);
         gl::UniformMatrix4fv(uniform, 1, FALSE, value.as_array().as_ptr() as *const _);
@@ -87,6 +94,7 @@ impl Program
         value: glm::Vector3<f32>,
     )
     {
+        self.bind();
         let c_str = CString::new(name).unwrap();
         let uniform = gl::GetUniformLocation(self.id, c_str.as_ptr() as *const i8);
         gl::Uniform3f(uniform, value.x, value.y, value.z);

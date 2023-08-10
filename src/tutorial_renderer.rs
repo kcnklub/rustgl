@@ -6,6 +6,7 @@ use glm::Vec3;
 use crate::{
     camera::Camera,
     program::Program,
+    renderer,
     shader::{Shader, ShaderError},
 };
 
@@ -13,9 +14,8 @@ pub struct TutorialRenderer
 {
     program: Program,
     lighting_program: Program,
-    vao: GLuint,
-    vbo: GLuint,
-    lighting_vao: GLuint,
+    vertex_array: renderer::VertexArray,
+    light_vertex_array: renderer::VertexArray,
     light_position: Vec3,
 }
 
@@ -44,64 +44,19 @@ impl TutorialRenderer
             )?;
             let lighting_program = Program::new(&[lighting_vertex_shader, lighting_frag_shader])?;
 
-            let mut vao = std::mem::zeroed();
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
+            let mut vertex_array = renderer::VertexArray::new(&VERTEX_DATA, 6);
+            vertex_array.add_vert_att_ptr(3);
 
-            let mut vbo = std::mem::zeroed();
-            gl::GenBuffers(1, &mut vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
-                (VERTEX_DATA.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-                VERTEX_DATA.as_ptr() as *const _,
-                gl::STATIC_DRAW,
-            );
+            let mut light_vertex_array = renderer::VertexArray::new_with_vbo(vertex_array.vbo, 6);
+            light_vertex_array.add_vert_att_ptr(3);
+            light_vertex_array.add_vert_att_ptr(3);
 
-            // vertex attri
-            gl::VertexAttribPointer(
-                0 as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
-            );
-            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
             gl::Enable(gl::DEPTH_TEST);
-
-            let mut light_vao: GLuint = 0;
-            gl::GenVertexArrays(1, &mut light_vao);
-            gl::BindVertexArray(light_vao);
-
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-
-            gl::VertexAttribPointer(
-                0 as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
-            );
-            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
-
-            gl::VertexAttribPointer(
-                1 as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                6 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                (3 * std::mem::size_of::<f32>()) as *const () as *const _,
-            );
-            gl::EnableVertexAttribArray(1 as gl::types::GLuint);
-
             return Ok(Self {
                 program,
                 lighting_program,
-                vao,
-                vbo,
-                lighting_vao: light_vao,
+                vertex_array,
+                light_vertex_array,
                 light_position: glm::vec3(1.2, 1.0, 2.0),
             });
         }
@@ -154,7 +109,7 @@ impl TutorialRenderer
             );
             self.program.set_uniform_mat4("model", model);
 
-            gl::BindVertexArray(self.vao);
+            gl::BindVertexArray(self.vertex_array.vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 36);
 
             gl::UseProgram(self.lighting_program.id);
@@ -173,7 +128,7 @@ impl TutorialRenderer
             model = glm::ext::scale(&model, glm::vec3(0.2, 0.2, 0.2));
             self.lighting_program.set_uniform_mat4("model", model);
 
-            gl::BindVertexArray(self.lighting_vao);
+            gl::BindVertexArray(self.light_vertex_array.vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 36);
         }
     }

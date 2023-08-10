@@ -1,6 +1,6 @@
 use std::ops::Add;
 
-use glm::{vec3, Mat4, Vec3};
+use glm::{vec3, Mat4, Vec3, Vector3};
 use winit::event::VirtualKeyCode;
 
 pub struct Camera
@@ -16,6 +16,8 @@ pub struct Camera
     yaw: f32,
 
     pub fov: f32,
+
+    velocity: Vec3,
 }
 
 impl Camera
@@ -32,6 +34,7 @@ impl Camera
             pitch:           0.0,
             yaw:             -90.0,
             fov:             45.0,
+            velocity:        vec3(0.0, 0.0,  0.0),
         };
         new_camera.update_camera_vectors();
         new_camera
@@ -112,4 +115,20 @@ impl Camera
         self.right = glm::normalize(glm::cross(self.camera_front, self.world_up));
         self.camera_up = glm::normalize(glm::cross(self.right, self.camera_front));
     }
+
+    pub(crate) fn apply_gravity(
+        &mut self,
+        delta_time: f32,
+    )
+    {
+        //println!("velocity: {:?}", self.velocity);
+        self.camera_position = self.camera_position + self.velocity * delta_time;
+        self.velocity = self.velocity + (GRAVITY / 1.0) * delta_time;
+    }
 }
+
+const GRAVITY: glm::Vec3 = Vector3 {
+    x: 0.0,
+    y: 0.0,
+    z: 0.0,
+};

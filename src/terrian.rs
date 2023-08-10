@@ -3,6 +3,7 @@ use std::time::SystemTime;
 use crate::{
     camera::Camera,
     program::Program,
+    renderer,
     shader::{Shader, ShaderError},
     texture::Texture,
 };
@@ -10,8 +11,8 @@ use crate::{
 pub struct TerrianRenderer
 {
     program: Program,
-    vao: gl::types::GLuint,
-    vbo: gl::types::GLuint,
+    vertex_array: renderer::VertexArray,
+    index_buffer: renderer::IndexBuffer,
     texture: Texture,
     light_position: glm::Vec3,
 }
@@ -21,72 +22,20 @@ impl TerrianRenderer
     pub fn new() -> Result<Self, ShaderError>
     {
         unsafe {
-            // this is sound shit should be moved out of the render code.
-
             let vertex_shader = Shader::new("./resources/shaders/vertex.glsl", gl::VERTEX_SHADER)?;
             let fragment_shader =
                 Shader::new("./resources/shaders/fragment.glsl", gl::FRAGMENT_SHADER)?;
             let program = Program::new(&[vertex_shader, fragment_shader])?;
 
-            let vertex_data = generate_terrian_vertices(50.0, 1009);
-            let ebo_data = generate_terrian_ebo(1009);
+            let vertex_data = generate_terrian_vertices(100.0, 1009);
+            let mut vertex_array = renderer::VertexArray::new(&vertex_data, 8);
 
-            let mut vao = std::mem::zeroed();
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
+            let index_data = generate_terrian_ebo(1009);
+            let index_buffer = renderer::IndexBuffer::new(&index_data);
 
-            let mut vbo = std::mem::zeroed();
-            gl::GenBuffers(1, &mut vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
-                (vertex_data.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-                vertex_data.as_ptr() as *const _,
-                gl::STATIC_DRAW,
-            );
-
-            let mut ebo = std::mem::zeroed();
-            gl::GenBuffers(1, &mut ebo);
-            gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
-            gl::BufferData(
-                gl::ELEMENT_ARRAY_BUFFER,
-                (ebo_data.len() * std::mem::size_of::<i32>()) as gl::types::GLsizeiptr,
-                ebo_data.as_ptr() as *const _,
-                gl::STATIC_DRAW,
-            );
-
-            // vertex attri
-            gl::VertexAttribPointer(
-                0 as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                8 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
-            );
-            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
-
-            // texture attri
-            gl::VertexAttribPointer(
-                1 as gl::types::GLuint,
-                2,
-                gl::FLOAT,
-                0,
-                8 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                (3 * std::mem::size_of::<f32>()) as *const () as *const _,
-            );
-            gl::EnableVertexAttribArray(1 as gl::types::GLuint);
-
-            // normal attri
-            gl::VertexAttribPointer(
-                2 as gl::types::GLuint,
-                3,
-                gl::FLOAT,
-                0,
-                8 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                (5 * std::mem::size_of::<f32>()) as *const () as *const _,
-            );
-            gl::EnableVertexAttribArray(2 as gl::types::GLuint);
+            vertex_array.add_vert_att_ptr(3);
+            vertex_array.add_vert_att_ptr(2);
+            vertex_array.add_vert_att_ptr(3);
 
             let texture = Texture::new();
             texture.set_wrap_settings();
@@ -98,8 +47,8 @@ impl TerrianRenderer
 
             return Ok(Self {
                 program,
-                vao,
-                vbo,
+                vertex_array,
+                index_buffer,
                 texture,
                 light_position: glm::vec3(25.0, 25.0, 25.0),
             });
@@ -116,8 +65,6 @@ impl TerrianRenderer
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
             self.texture.activate();
-
-            gl::UseProgram(self.program.id);
 
             let view = camera.get_view_matrix();
             self.program.set_uniform_mat4("view", view);
@@ -149,9 +96,7 @@ impl TerrianRenderer
             );
             self.program.set_uniform_vec3("lightPos", moving_light);
 
-            gl::BindVertexArray(self.vao);
-
-            gl::DrawElements(gl::TRIANGLES, 6096384, gl::UNSIGNED_INT, std::ptr::null());
+            renderer::draw(&self.vertex_array, &self.index_buffer, &self.program)
         }
     }
 
@@ -180,8 +125,8 @@ impl Drop for TerrianRenderer
     fn drop(&mut self)
     {
         unsafe {
-            gl::DeleteBuffers(1, &self.vbo);
-            gl::DeleteVertexArrays(1, &self.vao);
+            gl::DeleteBuffers(1, &self.vertex_array.vbo);
+            gl::DeleteVertexArrays(1, &self.vertex_array.vao);
         }
     }
 }
@@ -204,7 +149,7 @@ pub fn generate_terrian_vertices(
             if col >= divisions
             {
                 let pixel = img.get_pixel(col as u32 - 1, row as u32).0[0];
-                output.push(pixel as f32 / 4000.0); // can we give this height?
+                output.push(pixel as f32 / 3000.0); // can we give this height?
             }
             else
             {

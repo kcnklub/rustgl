@@ -21,7 +21,11 @@ use crate::terrian::TerrianRenderer;
 use crate::tutorial_renderer::TutorialRenderer;
 
 mod camera;
+mod colliding_renderer;
+mod collision;
+mod debug_gui;
 mod program;
+mod renderer;
 mod shader;
 mod terrian;
 mod texture;
@@ -79,7 +83,6 @@ fn main()
 
     let mut camera = Camera::new();
     let mut last_time = SystemTime::now();
-    let mut delta_time = Default::default();
     let mut now_keys = [false; 255];
 
     event_loop.run(move |event, window_target, control_flow| {
@@ -89,10 +92,8 @@ fn main()
         let delta_time_duration = current_time
             .duration_since(last_time)
             .expect("can't get delta_time");
-        delta_time = delta_time_duration.as_secs_f32();
+        let delta_time = delta_time_duration.as_secs_f32();
         last_time = current_time;
-
-        //println!("fps: {}", 1.0 / delta_time);
 
         match event
         {
@@ -126,7 +127,7 @@ fn main()
                     gl_display.get_proc_address(c_str.as_c_str())
                 });
 
-                renderer.get_or_insert_with(|| TerrianRenderer::new().unwrap());
+                renderer.get_or_insert_with(|| colliding_renderer::SquareRenderer::new());
 
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
@@ -187,6 +188,9 @@ fn main()
             {
                 if let Some((gl_context, gl_surface, window)) = &state
                 {
+                    // let try some physic??
+                    camera.apply_gravity(delta_time);
+
                     let renderer = renderer.as_mut().unwrap();
                     renderer.draw(&camera);
                     window.request_redraw();
