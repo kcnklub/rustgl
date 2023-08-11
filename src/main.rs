@@ -211,15 +211,13 @@ fn main()
 
                     let renderer = renderer.as_mut().unwrap();
 
-                    //let are_colliding = collision::test_collision_3d(
-                    //    renderer.get_verts().as_slice(),
-                    //    3,
-                    //    another_renderer.get_verts().as_slice(),
-                    //    3,
-                    //);
+                    let first = renderer.get_verts();
+                    let second = another_renderer.get_verts();
+                    let are_colliding =
+                        collision::test_collision_3d(first.as_slice(), 3, second.as_slice(), 3);
 
-                    another_renderer.process_square("y", &camera, true);
-                    renderer.process_square("x", &camera, false);
+                    another_renderer.process_square("y", &camera, are_colliding);
+                    renderer.process_square("x", &camera, are_colliding);
 
                     window.request_redraw();
 

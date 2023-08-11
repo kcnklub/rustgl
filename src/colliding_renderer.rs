@@ -39,22 +39,22 @@ impl SquareObject
         if axis == "x"
         {
             let offset = glm::sin(glm::radians(time_since as f64 * 0.05));
-            let moving_light = glm::vec3(
-                self.position.x + (offset as f32 * 2.0),
+            self.position = glm::vec3(
+                self.position.x + (offset as f32 * 0.01),
                 self.position.y,
                 self.position.z,
             );
-            self.renderer.draw(&moving_light, camera, &color);
+            self.renderer.draw(&self.position, camera, &color);
         }
         else if axis == "y"
         {
             let offset = glm::sin(glm::radians(time_since as f64 * 0.05));
-            let moving_light = glm::vec3(
+            self.position = glm::vec3(
                 self.position.x,
-                self.position.y + (offset as f32 * 2.0),
+                self.position.y + (offset as f32 * 0.01),
                 self.position.z,
             );
-            self.renderer.draw(&moving_light, camera, &color);
+            self.renderer.draw(&self.position, camera, &color);
         }
     }
 
@@ -71,22 +71,46 @@ impl SquareObject
         model = glm::ext::translate(&model, self.position);
 
         let mut ret_val = vec![];
-        let vert = model * vec4(0.5, 0.5, 0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(0.5, 0.5, -0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(0.5, -0.5, 0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(0.5, -0.5, -0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(-0.5, 0.5, 0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(-0.5, 0.5, -0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(-0.5, -0.5, 0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
-        let vert = model * vec4(-0.5, -0.5, -0.5, 1.0);
-        ret_val.push(vec3(vert.x, vert.y, vert.z));
+        let a = model * vec4(0.5, 0.5, 0.5, 1.0);
+        let a = vec3(a.x, a.y, a.z);
+        let b = model * vec4(0.5, 0.5, -0.5, 1.0);
+        let b = vec3(b.x, b.y, b.z);
+        let c = model * vec4(0.5, -0.5, 0.5, 1.0);
+        let c = vec3(c.x, c.y, c.z);
+        let d = model * vec4(0.5, -0.5, -0.5, 1.0);
+        let d = vec3(d.x, d.y, d.z);
+        let e = model * vec4(-0.5, 0.5, 0.5, 1.0);
+        let e = vec3(e.x, e.y, e.z);
+        let f = model * vec4(-0.5, 0.5, -0.5, 1.0);
+        let f = vec3(f.x, f.y, f.z);
+        let g = model.mul_v(&vec4(-0.5, -0.5, 0.5, 1.0));
+        let g = vec3(g.x, g.y, g.z);
+        let h = model.mul_v(&vec4(-0.5, -0.5, -0.5, 1.0));
+        let h = vec3(h.x, h.y, h.z);
+
+        ret_val.push(a);
+        ret_val.push(b);
+        ret_val.push(c);
+
+        ret_val.push(a);
+        ret_val.push(e);
+        ret_val.push(b);
+
+        ret_val.push(a);
+        ret_val.push(e);
+        ret_val.push(c);
+
+        ret_val.push(c);
+        ret_val.push(g);
+        ret_val.push(d);
+
+        ret_val.push(f);
+        ret_val.push(e);
+        ret_val.push(h);
+
+        ret_val.push(f);
+        ret_val.push(b);
+        ret_val.push(h);
 
         ret_val
     }
