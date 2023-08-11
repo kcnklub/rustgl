@@ -9,13 +9,13 @@ use crate::{
     shader::Shader,
 };
 
-pub struct SquareObject
+pub struct CubeObject
 {
     pub position: Vec3,
-    pub renderer: SquareRenderer,
+    pub renderer: CubeRenderer,
 }
 
-impl SquareObject
+impl CubeObject
 {
     pub fn process_square(
         &mut self,
@@ -114,15 +114,24 @@ impl SquareObject
 
         ret_val
     }
+
+    pub fn resize(
+        &self,
+        width: i32,
+        height: i32,
+    )
+    {
+        self.renderer.resize(width, height);
+    }
 }
 
-pub struct SquareRenderer
+pub struct CubeRenderer
 {
     program: Program,
     vertex_array: VertexArray,
 }
 
-impl SquareRenderer
+impl CubeRenderer
 {
     pub fn new() -> Self
     {
