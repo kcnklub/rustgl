@@ -12,7 +12,7 @@ use crate::{
 pub struct CubeObject
 {
     pub position: Vec3,
-    pub renderer: CubeRenderer,
+    pub is_colliding: bool,
 }
 
 impl CubeObject
@@ -20,8 +20,6 @@ impl CubeObject
     pub fn process_square(
         &mut self,
         axis: &str,
-        camera: &Camera,
-        is_colliding: bool,
     )
     {
         let time = SystemTime::now();
@@ -29,12 +27,6 @@ impl CubeObject
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_millis();
-
-        let color = match is_colliding
-        {
-            true => vec3(1.0, 0.0, 0.0),
-            false => vec3(0.0, 1.0, 0.0),
-        };
 
         if axis == "x"
         {
@@ -44,7 +36,6 @@ impl CubeObject
                 self.position.y,
                 self.position.z,
             );
-            self.renderer.draw(&self.position, camera, &color);
         }
         else if axis == "y"
         {
@@ -54,7 +45,6 @@ impl CubeObject
                 self.position.y + (offset as f32 * 0.01),
                 self.position.z,
             );
-            self.renderer.draw(&self.position, camera, &color);
         }
     }
 
@@ -113,15 +103,6 @@ impl CubeObject
         ret_val.push(h);
 
         ret_val
-    }
-
-    pub fn resize(
-        &self,
-        width: i32,
-        height: i32,
-    )
-    {
-        self.renderer.resize(width, height);
     }
 }
 
