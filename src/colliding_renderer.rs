@@ -1,53 +1,29 @@
-use std::time::SystemTime;
+use std::{cell::RefCell, rc::Rc};
 
 use glm::{vec3, vec4, Vec3};
 
 use crate::{
     camera::Camera,
+    game::CubeGameState,
     program::Program,
     renderer::{self, VertexArray},
     shader::Shader,
 };
 
+#[derive(Debug, Clone)]
 pub struct CubeObject
 {
+    pub id: i32,
     pub position: Vec3,
     pub is_colliding: bool,
+    pub colliding_objects: Vec<Rc<RefCell<CubeObject>>>,
+    pub force: Vec3,
+    pub velocity: Vec3,
+    pub mass: f32,
 }
 
 impl CubeObject
 {
-    pub fn process_square(
-        &mut self,
-        axis: &str,
-    )
-    {
-        let time = SystemTime::now();
-        let time_since = time
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-
-        if axis == "x"
-        {
-            let offset = glm::sin(glm::radians(time_since as f64 * 0.05));
-            self.position = glm::vec3(
-                self.position.x + (offset as f32 * 0.01),
-                self.position.y,
-                self.position.z,
-            );
-        }
-        else if axis == "y"
-        {
-            let offset = glm::sin(glm::radians(time_since as f64 * 0.05));
-            self.position = glm::vec3(
-                self.position.x,
-                self.position.y + (offset as f32 * 0.01),
-                self.position.z,
-            );
-        }
-    }
-
     pub fn get_verts(&self) -> Vec<Vec3>
     {
         #[rustfmt::skip]
@@ -104,6 +80,21 @@ impl CubeObject
 
         ret_val
     }
+
+    pub fn integrate(
+        &mut self,
+        delta_time: f32,
+    )
+    {
+        if !self.colliding_objects.is_empty()
+        {
+            // we need to calc the new velocity for me and the other block
+            println!("we are colliding,")
+        }
+
+        self.position = self.position + self.velocity * delta_time;
+        self.velocity = self.velocity + (self.force / self.mass) * delta_time;
+    }
 }
 
 pub struct CubeRenderer
@@ -132,6 +123,24 @@ impl CubeRenderer
                 program,
                 vertex_array,
             }
+        }
+    }
+
+    pub fn draw_state(
+        &self,
+        state: &CubeGameState,
+        camera: &Camera,
+    )
+    {
+        let cubes = state.cubes.as_slice();
+        for cube in cubes
+        {
+            let color = match cube.borrow().is_colliding
+            {
+                true => vec3(1.0, 0.0, 0.0),
+                false => vec3(0.0, 1.0, 0.0),
+            };
+            self.draw(&cube.borrow().position, &camera, &color);
         }
     }
 

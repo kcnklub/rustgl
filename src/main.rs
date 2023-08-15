@@ -1,19 +1,20 @@
 use std::time::SystemTime;
 
 use camera::Camera;
-use glm::vec3;
+use game::CubeGameState;
 use window_utils::{build_gl_state, handle_window_event, track_user_input};
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::EventLoopBuilder;
 
 use glutin::prelude::*;
 
-use crate::colliding_renderer::{CubeObject, CubeRenderer};
+use crate::colliding_renderer::CubeRenderer;
 
 mod camera;
 mod colliding_renderer;
 mod collision;
 mod debug_gui;
+mod game;
 mod program;
 mod renderer;
 mod shader;
@@ -29,15 +30,8 @@ fn main()
     let state = build_gl_state(&event_loop);
 
     let renderer = CubeRenderer::new();
-    let mut cubes = vec![];
-    for i in 0..2
-    {
-        let cube = CubeObject {
-            position: vec3(i as f32, 0.0, 0.0),
-            is_colliding: false,
-        };
-        cubes.push(cube)
-    }
+
+    let mut game_state = CubeGameState::new();
 
     let mut camera = Camera::new();
     let mut current_time = SystemTime::now();
@@ -77,34 +71,16 @@ fn main()
 
                 camera.handle_keyboard_input(&now_keys, frame_time);
 
-                let mut counter = 0;
+                game_state.handle_keyboard_input(&now_keys);
 
-                let cubes = cubes.as_mut_slice();
                 while frame_time > 0.0
                 {
                     let delta_time = frame_time.min(dt);
                     frame_time = frame_time - delta_time;
-                    calc_colliding(cubes); // currently the next
+                    game_state.integrate(delta_time);
                 }
 
-                for cube in cubes
-                {
-                    let direction = match counter % 2
-                    {
-                        0 => "y",
-                        1 => "x",
-                        _ => "z",
-                    };
-                    cube.process_square(direction);
-
-                    let color = match cube.is_colliding
-                    {
-                        true => vec3(1.0, 0.0, 0.0),
-                        false => vec3(0.0, 1.0, 0.0),
-                    };
-                    renderer.draw(&cube.position, &camera, &color);
-                    counter = counter + 1;
-                }
+                renderer.draw_state(&game_state, &camera); //
 
                 if let Some((gl_context, gl_surface, window)) = &state
                 {
@@ -121,33 +97,4 @@ fn main()
             {}
         }
     });
-}
-
-fn calc_colliding(cubes: &mut [CubeObject])
-{
-    let cube_len = cubes.len();
-    for i in 0..cube_len
-    {
-        let main_cube = &mut cubes[i];
-        let main_verts = main_cube.get_verts();
-        let mut is_colliding = false;
-        for j in 0..cube_len
-        {
-            if i == j
-            {
-                continue;
-            }
-            let other_cube = &cubes[j];
-            let other_verts = other_cube.get_verts();
-
-            is_colliding = collision::test_collision_3d(&main_verts, 3, &other_verts, 3);
-
-            if is_colliding
-            {
-                break;
-            }
-        }
-
-        *&mut cubes[i].is_colliding = is_colliding;
-    }
 }
