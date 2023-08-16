@@ -16,19 +16,28 @@ impl CubeGameState
     pub fn new() -> Self
     {
         let mut cubes = vec![];
-        for i in 0..2
-        {
-            let cube = CubeObject {
-                id: i,
-                position: vec3(i as f32 * 2.0, 0.0, 0.0),
-                is_colliding: false,
-                colliding_objects: vec![],
-                force: vec3(0.0, 0.0, 0.0),
-                velocity: vec3(0.0, 0.0, 0.0),
-                mass: 0.5,
-            };
-            cubes.push(Rc::new(RefCell::new(cube)))
-        }
+        let cube = CubeObject {
+            id: 0,
+            position: vec3(0.0, 0.0, 0.0),
+            is_colliding: false,
+            colliding_objects: vec![],
+            normal_vector: vec3(0.0, 0.0, 0.0),
+            force: vec3(0.0, 0.0, 0.0),
+            velocity: vec3(0.0, 0.0, 0.0),
+            mass: 0.5,
+        };
+        cubes.push(Rc::new(RefCell::new(cube)));
+        let cube = CubeObject {
+            id: 0,
+            position: vec3(2.0, 2.3, 0.0),
+            is_colliding: false,
+            colliding_objects: vec![],
+            normal_vector: vec3(0.0, 0.0, 0.0),
+            force: vec3(0.0, 0.0, 0.0),
+            velocity: vec3(0.0, 0.0, 0.0),
+            mass: 0.5,
+        };
+        cubes.push(Rc::new(RefCell::new(cube)));
         Self { cubes }
     }
 
@@ -42,12 +51,15 @@ impl CubeGameState
         {
             if now_keys[VirtualKeyCode::G as usize]
             {
-                cube.borrow_mut().force = glm::vec3(1000.0, 0.0, 0.0);
+                cube.borrow_mut().force = glm::vec3(10000.0, 5000.0, 0.0);
+            }
+            else if now_keys[VirtualKeyCode::B as usize]
+            {
+                cube.borrow_mut().force = glm::vec3(10000.0, -10000.0, 0.0);
             }
             else
             {
                 cube.borrow_mut().force = glm::vec3(0.0, 0.0, 0.0);
-                cube.borrow_mut().velocity = glm::vec3(0.0, 0.0, 0.0);
             }
         }
     }
@@ -57,9 +69,7 @@ impl CubeGameState
         delta_time: f32,
     )
     {
-        println!("{:#?}", self);
         calc_colliding(&mut self.cubes);
-
         for cube in self.cubes.as_slice()
         {
             cube.borrow_mut().integrate(delta_time);
@@ -76,8 +86,8 @@ fn calc_colliding(cubes: &mut Vec<Rc<RefCell<CubeObject>>>)
         main_cube.borrow_mut().colliding_objects = vec![];
         let main_verts = main_cube.borrow().get_verts();
 
-        println!("{:?}", main_cube.borrow().id);
         let mut is_colliding = false;
+        let mut normal_vector = None;
         for j in 0..cube_len
         {
             if i == j
@@ -86,23 +96,25 @@ fn calc_colliding(cubes: &mut Vec<Rc<RefCell<CubeObject>>>)
             }
             let other_cube = &cubes[j].clone();
             let other_verts = other_cube.borrow().get_verts();
-            is_colliding = collision::test_collision_3d(&main_verts, 3, &other_verts, 3);
+            (is_colliding, normal_vector) =
+                collision::test_collision_3d(&main_verts, 3, &other_verts, 3);
 
             if is_colliding
             {
                 if let Some(cube) = Rc::get_mut(&mut cubes[i])
                 {
-                    cube.borrow_mut()
-                        .colliding_objects
-                        .push(other_cube.to_owned());
+                    let mut borrowed = cube.borrow_mut();
+                    borrowed.colliding_objects.push(other_cube.to_owned());
+                    if let Some(normal) = normal_vector
+                    {
+                        borrowed.normal_vector = normal;
+                    }
                 }
                 break;
             }
         }
 
-        if let Some(cube) = Rc::get_mut(&mut cubes[i])
-        {
-            cube.borrow_mut().is_colliding = is_colliding;
-        }
+        let main_cube = &mut cubes[i];
+        main_cube.borrow_mut().is_colliding = is_colliding;
     }
 }

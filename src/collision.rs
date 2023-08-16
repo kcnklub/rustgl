@@ -1,4 +1,4 @@
-use glm::{vec2, Vec2, Vec3};
+use glm::{vec2, vec3, Vec2, Vec3};
 
 // return true if objects are colliding.
 fn test_collision_2d(
@@ -95,8 +95,10 @@ pub fn test_collision_3d(
     stride1: usize,
     v2: &[Vec3],
     stride2: usize,
-) -> bool
+) -> (bool, Option<Vec3>)
 {
+    let mut normal_output = vec3(0.0, 0.0, 0.0);
+    let mut depth = f32::MAX;
     for i in (0..v1.len()).step_by(stride1)
     {
         let a_to_b = v1[i + 1] - v1[i];
@@ -108,7 +110,14 @@ pub fn test_collision_3d(
         let (min_2, max_2) = get_projected_min_max_3d(v2, &normal);
         if min_1 > max_2 || min_2 > max_1
         {
-            return false;
+            return (false, None);
+        }
+
+        let axis_depth = f32::min(max_2 - min_1, max_1 - min_2);
+        if depth > axis_depth
+        {
+            depth = axis_depth;
+            normal_output = normal;
         }
     }
 
@@ -123,10 +132,17 @@ pub fn test_collision_3d(
         let (min_2, max_2) = get_projected_min_max_3d(v2, &normal);
         if min_1 > max_2 || min_2 > max_1
         {
-            return false;
+            return (false, None);
+        }
+
+        let axis_depth = f32::min(max_2 - min_1, max_1 - min_2);
+        if depth > axis_depth
+        {
+            depth = axis_depth;
+            normal_output = normal;
         }
     }
-    true
+    (true, Some(normal_output))
 }
 
 // return (min, max)
@@ -173,7 +189,8 @@ mod test_3d
             vec3(1.0, 0.0, 0.0),
         ];
 
-        let is_colliding = test_collision_3d(&triangle_one, 3 as usize, &triangle_two, 3 as usize);
+        let (is_colliding, _) =
+            test_collision_3d(&triangle_one, 3 as usize, &triangle_two, 3 as usize);
 
         assert!(is_colliding)
     }
@@ -195,7 +212,8 @@ mod test_3d
             vec3(1.0, 0.0, 0.0),
         ];
 
-        let is_colliding = test_collision_3d(&triangle_one, 3 as usize, &triangle_two, 3 as usize);
+        let (is_colliding, _) =
+            test_collision_3d(&triangle_one, 3 as usize, &triangle_two, 3 as usize);
 
         assert!(!is_colliding)
     }

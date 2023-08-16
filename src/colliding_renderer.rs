@@ -16,6 +16,7 @@ pub struct CubeObject
     pub id: i32,
     pub position: Vec3,
     pub is_colliding: bool,
+    pub normal_vector: Vec3,
     pub colliding_objects: Vec<Rc<RefCell<CubeObject>>>,
     pub force: Vec3,
     pub velocity: Vec3,
@@ -88,13 +89,40 @@ impl CubeObject
     {
         if !self.colliding_objects.is_empty()
         {
-            // we need to calc the new velocity for me and the other block
-            println!("we are colliding,")
+            elastic_collision_reaction(self, delta_time);
+            //inelastic_collision_reaction(self, delta_time);
         }
-
-        self.position = self.position + self.velocity * delta_time;
-        self.velocity = self.velocity + (self.force / self.mass) * delta_time;
+        else
+        {
+            self.position = self.position + self.velocity * delta_time;
+            self.velocity = self.velocity + (self.force / self.mass) * delta_time;
+        }
     }
+}
+
+fn elastic_collision_reaction(
+    cube: &mut CubeObject,
+    delta_time: f32,
+)
+{
+    let output = glm::dot(cube.normal_vector, cube.velocity);
+    let reflected = cube.velocity - cube.normal_vector * 2.0 * output;
+    cube.velocity = reflected;
+    cube.position = cube.position + cube.velocity * delta_time;
+}
+
+fn inelastic_collision_reaction(
+    cube: &mut CubeObject,
+    delta_time: f32,
+)
+{
+    let mut other_cube = cube.colliding_objects.first().unwrap().borrow_mut();
+    let other_momentum = other_cube.velocity * other_cube.mass;
+    let momentum = cube.velocity * cube.mass;
+    let new_velocity = (other_momentum + momentum) / (cube.mass + other_cube.mass);
+    cube.velocity = new_velocity;
+    other_cube.velocity = new_velocity;
+    cube.position = cube.position + cube.velocity * delta_time;
 }
 
 pub struct CubeRenderer
