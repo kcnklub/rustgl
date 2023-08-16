@@ -25,21 +25,21 @@ impl TutorialRenderer
     {
         unsafe {
             let vertex_shader = Shader::new(
-                "./resources/shaders/lighting/colors.vert",
+                "./resources/shaders/lighting/colors_vert.glsl",
                 gl::VERTEX_SHADER,
             )?;
             let fragment_shader = Shader::new(
-                "./resources/shaders/lighting/colors.frag",
+                "./resources/shaders/lighting/colors_frag.glsl",
                 gl::FRAGMENT_SHADER,
             )?;
             let program = Program::new(&[vertex_shader, fragment_shader])?;
 
             let lighting_vertex_shader = Shader::new(
-                "./resources/shaders/lighting/light_cube.vert",
+                "./resources/shaders/lighting/light_cube_vert.glsl",
                 gl::VERTEX_SHADER,
             )?;
             let lighting_frag_shader = Shader::new(
-                "./resources/shaders/lighting/light_cube.frag",
+                "./resources/shaders/lighting/light_cube_frag.glsl",
                 gl::FRAGMENT_SHADER,
             )?;
             let lighting_program = Program::new(&[lighting_vertex_shader, lighting_frag_shader])?;

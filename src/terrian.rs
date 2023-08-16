@@ -136,8 +136,12 @@ pub fn generate_terrian_vertices(
     divisions: i32,
 ) -> Vec<f32>
 {
-    let img = image::open("my_height_map.png").unwrap().into_luma16();
-    let normal_img = image::open("normal_map.png").unwrap().into_rgba8();
+    let img = image::open("./resources/map/my_height_map.png")
+        .unwrap()
+        .into_luma16();
+    let normal_img = image::open("./resources/map/normal_map.png")
+        .unwrap()
+        .into_rgba8();
     let mut output = vec![];
     let triangle_side = width / divisions as f32;
     for row in 0..divisions

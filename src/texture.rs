@@ -28,7 +28,7 @@ impl Texture
     {
         self.bind();
 
-        let img = image::open("desert_mountains.png").unwrap();
+        let img = image::open("./resources/map/desert_mountains.png").unwrap();
         let bit_map = img.into_rgba8();
 
         gl::TexImage2D(
