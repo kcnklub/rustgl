@@ -18,7 +18,7 @@ impl CubeGameState
         let mut cubes = vec![];
         let cube = CubeObject {
             id: 0,
-            position: vec3(0.0, 0.0, 0.0),
+            position: vec3(2.5, -3.0, -1.0),
             is_colliding: false,
             colliding_objects: vec![],
             normal_vector: vec3(0.0, 0.0, 0.0),
@@ -27,17 +27,28 @@ impl CubeGameState
             mass: 0.5,
         };
         cubes.push(Rc::new(RefCell::new(cube)));
-        let cube = CubeObject {
-            id: 0,
-            position: vec3(2.0, 2.3, 0.0),
-            is_colliding: false,
-            colliding_objects: vec![],
-            normal_vector: vec3(0.0, 0.0, 0.0),
-            force: vec3(0.0, 0.0, 0.0),
-            velocity: vec3(0.0, 0.0, 0.0),
-            mass: 0.5,
-        };
-        cubes.push(Rc::new(RefCell::new(cube)));
+
+        for x in 0..2
+        {
+            for y in 0..2
+            {
+                for z in 0..2
+                {
+                    let cube = CubeObject {
+                        id: 0,
+                        position: vec3(1.1 * x as f32, 1.1 * y as f32, 1.1 * z as f32),
+                        is_colliding: false,
+                        colliding_objects: vec![],
+                        normal_vector: vec3(0.0, 0.0, 0.0),
+                        force: vec3(0.0, 0.0, 0.0),
+                        velocity: vec3(0.0, 0.0, 0.0),
+                        mass: 0.5,
+                    };
+                    cubes.push(Rc::new(RefCell::new(cube)));
+                }
+            }
+        }
+
         Self { cubes }
     }
 
@@ -49,13 +60,29 @@ impl CubeGameState
         let cube = self.cubes.get_mut(0).unwrap();
         if let Some(cube) = Rc::get_mut(cube)
         {
-            if now_keys[VirtualKeyCode::G as usize]
+            if now_keys[VirtualKeyCode::I as usize]
             {
-                cube.borrow_mut().force = glm::vec3(10000.0, 5000.0, 0.0);
+                cube.borrow_mut().force = glm::vec3(0.0, 10000.0, 0.0);
             }
-            else if now_keys[VirtualKeyCode::B as usize]
+            else if now_keys[VirtualKeyCode::K as usize]
             {
-                cube.borrow_mut().force = glm::vec3(10000.0, -10000.0, 0.0);
+                cube.borrow_mut().force = glm::vec3(0.0, -10000.0, 0.0);
+            }
+            else if now_keys[VirtualKeyCode::J as usize]
+            {
+                cube.borrow_mut().force = glm::vec3(-10000.0, 0.0, 0.0);
+            }
+            else if now_keys[VirtualKeyCode::L as usize]
+            {
+                cube.borrow_mut().force = glm::vec3(10000.0, 0.0, 0.0);
+            }
+            else if now_keys[VirtualKeyCode::U as usize]
+            {
+                cube.borrow_mut().force = glm::vec3(0.0, 0.0, 10000.0);
+            }
+            else if now_keys[VirtualKeyCode::O as usize]
+            {
+                cube.borrow_mut().force = glm::vec3(0.0, 0.0, -10000.0);
             }
             else
             {

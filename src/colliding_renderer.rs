@@ -44,16 +44,8 @@ impl CubeObject
         let b = vec3(b.x, b.y, b.z);
         let c = model * vec4(0.5, -0.5, 0.5, 1.0);
         let c = vec3(c.x, c.y, c.z);
-        let d = model * vec4(0.5, -0.5, -0.5, 1.0);
-        let d = vec3(d.x, d.y, d.z);
         let e = model * vec4(-0.5, 0.5, 0.5, 1.0);
         let e = vec3(e.x, e.y, e.z);
-        let f = model * vec4(-0.5, 0.5, -0.5, 1.0);
-        let f = vec3(f.x, f.y, f.z);
-        let g = model.mul_v(&vec4(-0.5, -0.5, 0.5, 1.0));
-        let g = vec3(g.x, g.y, g.z);
-        let h = model.mul_v(&vec4(-0.5, -0.5, -0.5, 1.0));
-        let h = vec3(h.x, h.y, h.z);
 
         ret_val.push(a);
         ret_val.push(b);
@@ -66,18 +58,6 @@ impl CubeObject
         ret_val.push(a);
         ret_val.push(e);
         ret_val.push(c);
-
-        ret_val.push(c);
-        ret_val.push(g);
-        ret_val.push(d);
-
-        ret_val.push(f);
-        ret_val.push(e);
-        ret_val.push(h);
-
-        ret_val.push(f);
-        ret_val.push(b);
-        ret_val.push(h);
 
         ret_val
     }
@@ -94,9 +74,14 @@ impl CubeObject
         }
         else
         {
-            self.position = self.position + self.velocity * delta_time;
             self.velocity = self.velocity + (self.force / self.mass) * delta_time;
+            self.position = self.position + self.velocity * delta_time;
         }
+    }
+
+    fn is_moving(&self) -> bool
+    {
+        vec3(0.0, 0.0, 0.0) != self.velocity
     }
 }
 
@@ -107,8 +92,22 @@ fn elastic_collision_reaction(
 {
     let output = glm::dot(cube.normal_vector, cube.velocity);
     let reflected = cube.velocity - cube.normal_vector * 2.0 * output;
+
     cube.velocity = reflected;
     cube.position = cube.position + cube.velocity * delta_time;
+
+    let tangent = glm::vec3(
+        cube.normal_vector.y,
+        cube.normal_vector.x,
+        cube.normal_vector.z,
+    );
+    let tangent_reflected = reflected - tangent * 2.0;
+
+    for other_cube in cube.colliding_objects.as_mut_slice()
+    {
+        let mut other_cube = other_cube.borrow_mut();
+        other_cube.velocity = tangent_reflected * -1.0;
+    }
 }
 
 fn inelastic_collision_reaction(
